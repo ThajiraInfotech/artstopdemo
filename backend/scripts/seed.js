@@ -201,6 +201,7 @@ const seedData = async () => {
       },
       {
         name: "Resin Nameplate with Gold Finish",
+        slug: generateSlug("Resin Nameplate with Gold Finish"),
         category: "home-decor",
         collection: "Resin Nameplates",
         price: 2800,

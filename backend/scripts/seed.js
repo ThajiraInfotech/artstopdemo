@@ -149,6 +149,7 @@ const seedData = async () => {
     const products = [
       {
         name: "17 Ayatul Kursi Stainless Steel Islamic Wall Art",
+        slug: generateSlug("17 Ayatul Kursi Stainless Steel Islamic Wall Art"),
         category: "islamic-art",
         collection: "Ayatul Kursi Wall Art",
         price: 8000,

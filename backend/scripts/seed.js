@@ -227,6 +227,7 @@ const seedData = async () => {
       },
       {
         name: "Modern Geode Wall Art",
+        slug: generateSlug("Modern Geode Wall Art"),
         category: "home-decor",
         collection: "Geode Wall Art",
         price: 6000,

@@ -133,6 +133,17 @@ const seedData = async () => {
     const createdCategories = await Category.insertMany(categories);
     console.log(`Created ${createdCategories.length} categories`);
 
+    // Helper function to generate slug
+    const generateSlug = (str) => {
+      return str
+        .toLowerCase()
+        .replace(/[^a-zA-Z0-9 ]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .trim() || 'product';
+    };
+
     // Create sample products
     console.log('Creating sample products...');
     const products = [

@@ -253,6 +253,7 @@ const seedData = async () => {
       },
       {
         name: "Elegant Wedding Gift Set",
+        slug: generateSlug("Elegant Wedding Gift Set"),
         category: "gifts",
         collection: "Wedding Gifts",
         price: 4200,

@@ -279,6 +279,7 @@ const seedData = async () => {
       },
       {
         name: "Acrylic Wall Cutout",
+        slug: generateSlug("Acrylic Wall Cutout"),
         category: "cutouts-signage",
         collection: "Acrylic Cutouts",
         price: 2700,

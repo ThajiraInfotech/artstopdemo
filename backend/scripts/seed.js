@@ -175,6 +175,7 @@ const seedData = async () => {
       },
       {
         name: "99 Asma ul Husna Acrylic Islamic Wall Art",
+        slug: generateSlug("99 Asma ul Husna Acrylic Islamic Wall Art"),
         category: "islamic-art",
         collection: "Asma-ul-Husna Frames",
         price: 7000,

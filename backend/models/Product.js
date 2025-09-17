@@ -134,12 +134,14 @@ const productSchema = new mongoose.Schema({
 
 // Generate slug from name before saving
 productSchema.pre('save', function(next) {
-  if (this.isModified('name')) {
+  if (this.isModified('name') && this.name) {
     this.slug = this.name
       .toLowerCase()
       .replace(/[^a-zA-Z0-9 ]/g, '')
       .replace(/\s+/g, '-')
-      .trim();
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .trim() || 'product';
   }
   next();
 });

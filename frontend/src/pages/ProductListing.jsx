@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Filter, Grid, List, X, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -6,101 +6,84 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import ProductCard from '../components/ProductCard';
-import { products, categories } from '../data/mock';
+import { productsApi, categoriesApi } from '../lib/api';
+import { products as mockProducts, categories as mockCategories } from '../data/mock';
 
 const ProductListing = () => {
   const { category, collection } = useParams();
   const [searchParams] = useSearchParams();
   const [viewMode, setViewMode] = useState('grid');
-  const [sortBy, setSortBy] = useState('featured');
+  const [sortBy, setSortBy] = useState('newest');
   const [priceRange, setPriceRange] = useState('all');
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedCollections, setSelectedCollections] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
   const searchQuery = searchParams.get('search') || '';
   const productsPerPage = 12;
 
-  // Filter and sort products
-  const filteredProducts = useMemo(() => {
-    let filtered = [...products];
+  // Fetch products and categories from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-    // Filter by category (from URL)
-    if (category) {
-      filtered = filtered.filter(product => product.category === category);
-    }
-
-    // Filter by collection (from URL)
-    if (collection) {
-      // Convert slug back to collection name
-      const collectionName = categories
-        .find(cat => cat.slug === category)
-        ?.collections.find(col =>
-          col.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') === collection
-        );
-      if (collectionName) {
-        filtered = filtered.filter(product => product.collection === collectionName);
-      }
-    }
-
-    // Filter by selected categories (from filter sidebar)
-    if (selectedCategories.length > 0) {
-      filtered = filtered.filter(product => selectedCategories.includes(product.category));
-    }
-
-    // Filter by selected collections (from filter sidebar)
-    if (selectedCollections.length > 0) {
-      filtered = filtered.filter(product => selectedCollections.includes(product.collection));
-    }
-
-    // Filter by search query
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(product => 
-        product.name.toLowerCase().includes(query) ||
-        product.description.toLowerCase().includes(query)
-      );
-    }
-
-    // Filter by price range
-    if (priceRange !== 'all') {
-      const [min, max] = priceRange.split('-').map(Number);
-      filtered = filtered.filter(product => {
-        if (max) {
-          return product.price >= min && product.price <= max;
-        } else {
-          return product.price >= min;
+        // Fetch categories
+        try {
+          const categoriesResponse = await categoriesApi.getAll();
+          setCategories(categoriesResponse.data?.categories || []);
+        } catch (catError) {
+          console.warn('Failed to fetch categories from API, using mock data:', catError);
+          setCategories(mockCategories);
         }
-      });
-    }
 
-    // Sort products
-    switch (sortBy) {
-      case 'price-low':
-        filtered.sort((a, b) => a.price - b.price);
-        break;
-      case 'price-high':
-        filtered.sort((a, b) => b.price - a.price);
-        break;
-      case 'rating':
-        filtered.sort((a, b) => b.rating - a.rating);
-        break;
-      case 'newest':
-        filtered.sort((a, b) => b.id - a.id);
-        break;
-      default:
-        // Featured products first
-        filtered.sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
-    }
+        // Fetch products with current filters
+        const params = {
+          page: currentPage,
+          limit: productsPerPage,
+          sort: sortBy,
+          search: searchQuery,
+          category: selectedCategories.length === 1 ? selectedCategories[0] : category || undefined,
+          collection: selectedCollections.length === 1 ? selectedCollections[0] : collection || undefined,
+          minPrice: priceRange !== 'all' ? priceRange.split('-')[0] : undefined,
+          maxPrice: priceRange !== 'all' && priceRange.split('-')[1] ? priceRange.split('-')[1] : undefined,
+        };
 
-    return filtered;
-  }, [category, collection, searchQuery, priceRange, sortBy, selectedCategories, selectedCollections]);
+        // Remove undefined values
+        Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
 
-  // Pagination
-  const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
-  const startIndex = (currentPage - 1) * productsPerPage;
-  const paginatedProducts = filteredProducts.slice(startIndex, startIndex + productsPerPage);
+        const productsResponse = await productsApi.getAll(params);
+        setProducts(productsResponse.data?.products || []);
+        setTotalProducts(productsResponse.data?.pagination?.totalItems || 0);
+        setTotalPages(productsResponse.data?.pagination?.totalPages || 1);
+
+      } catch (err) {
+        console.error('Failed to fetch data from API:', err);
+        setError('Failed to load products. Please try again.');
+        // Fallback to mock data
+        setProducts(mockProducts);
+        setCategories(mockCategories);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [category, collection, searchQuery, sortBy, priceRange, currentPage, selectedCategories, selectedCollections]);
+
+  // Since we're fetching filtered products from API, use them directly
+  const filteredProducts = products;
+
+  // Since products are already paginated from API, use them directly
+  const paginatedProducts = products;
 
   const categoryInfo = category ? categories.find(cat => cat.slug === category) : null;
 
@@ -145,12 +128,12 @@ const ProductListing = () => {
     setSelectedCategories([]);
     setSelectedCollections([]);
     setPriceRange('all');
-    setSortBy('featured');
+    setSortBy('newest');
     setCurrentPage(1);
   };
 
   // Check if any filters are applied
-  const hasActiveFilters = selectedCategories.length > 0 || selectedCollections.length > 0 || priceRange !== 'all';
+  const hasActiveFilters = selectedCategories.length > 0 || selectedCollections.length > 0 || priceRange !== 'all' || sortBy !== 'newest';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-12">
@@ -185,7 +168,7 @@ const ProductListing = () => {
                   categoryInfo ? categoryInfo.name : 'All Products'}
               </h1>
               <p className="text-gray-600">
-                {filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'} found
+                {totalProducts} {totalProducts === 1 ? 'product' : 'products'} found
                 {hasActiveFilters && (
                   <button
                     onClick={clearAllFilters}
@@ -234,7 +217,6 @@ const ProductListing = () => {
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="featured">Featured</SelectItem>
                   <SelectItem value="newest">Newest</SelectItem>
                   <SelectItem value="price-low">Price: Low to High</SelectItem>
                   <SelectItem value="price-high">Price: High to Low</SelectItem>
@@ -291,7 +273,7 @@ const ProductListing = () => {
                 <h4 className="font-medium text-gray-900">Categories</h4>
                 <div className="space-y-3 max-h-48 overflow-y-auto pr-2">
                   {categories.map((cat) => (
-                    <label key={cat.id} className="flex items-center space-x-3 cursor-pointer group">
+                    <label key={cat.id || cat._id || cat.slug} className="flex items-center space-x-3 cursor-pointer group">
                       <div className="relative">
                         <input
                           type="checkbox"
@@ -319,7 +301,7 @@ const ProductListing = () => {
                       </div>
                       <span className="text-sm text-gray-700 group-hover:text-indigo-600 transition-colors flex-1">{cat.name}</span>
                       <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                        {products.filter(p => p.category === cat.slug).length}
+                        {cat.productCount || 0}
                       </span>
                     </label>
                   ))}
@@ -343,8 +325,8 @@ const ProductListing = () => {
               <div className="space-y-4 border-t border-gray-200 pt-6">
                 <h4 className="font-medium text-gray-900">Collections</h4>
                 <div className="space-y-3 max-h-48 overflow-y-auto pr-2">
-                  {availableCollections.map((col) => (
-                    <label key={col} className="flex items-center space-x-3 cursor-pointer group">
+                  {availableCollections.map((col, index) => (
+                    <label key={col || index} className="flex items-center space-x-3 cursor-pointer group">
                       <div className="relative">
                         <input
                           type="checkbox"
@@ -419,10 +401,10 @@ const ProductListing = () => {
                   transition={{ duration: 0.4 }}
                 >
                   {paginatedProducts.map((product, index) => (
-                    <ProductCard 
-                      key={product.id} 
-                      product={product} 
-                      index={index} 
+                    <ProductCard
+                      key={product.id || product._id || index}
+                      product={product}
+                      index={index}
                       layout={viewMode}
                     />
                   ))}
@@ -563,7 +545,7 @@ const ProductListing = () => {
                   <h4 className="font-medium text-gray-900">Categories</h4>
                   <div className="space-y-3 max-h-48 overflow-y-auto pr-2">
                     {categories.map((cat) => (
-                      <label key={cat.id} className="flex items-center space-x-3 cursor-pointer group">
+                      <label key={cat.id || cat._id || cat.slug} className="flex items-center space-x-3 cursor-pointer group">
                         <div className="relative">
                           <input
                             type="checkbox"
@@ -602,8 +584,8 @@ const ProductListing = () => {
                 <div className="space-y-4 border-t border-gray-200 pt-6">
                   <h4 className="font-medium text-gray-900">Collections</h4>
                   <div className="space-y-3 max-h-48 overflow-y-auto pr-2">
-                    {availableCollections.map((col) => (
-                      <label key={col} className="flex items-center space-x-3 cursor-pointer group">
+                    {availableCollections.map((col, index) => (
+                      <label key={col || index} className="flex items-center space-x-3 cursor-pointer group">
                         <div className="relative">
                           <input
                             type="checkbox"

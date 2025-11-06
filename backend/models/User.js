@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -20,7 +21,7 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
+    required: false,
     minlength: [6, 'Password must be at least 6 characters'],
     select: false
   },
@@ -55,7 +56,9 @@ const userSchema = new mongoose.Schema({
       default: Date.now,
       expires: 2592000 // 30 days
     }
-  }]
+  }],
+  resetPasswordToken: String,
+  resetPasswordExpires: Date
 }, {
   timestamps: true
 });
@@ -74,11 +77,30 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
+// Generate password reset token
+userSchema.methods.getResetPasswordToken = function() {
+  // Generate token
+  const resetToken = crypto.randomBytes(20).toString('hex');
+
+  // Hash token and set to resetPasswordToken field
+  this.resetPasswordToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+
+  // Set expire
+  this.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+  return resetToken;
+};
+
 // Get user without sensitive fields
 userSchema.methods.toJSON = function() {
   const user = this.toObject();
   delete user.password;
   delete user.refreshTokens;
+  delete user.resetPasswordToken;
+  delete user.resetPasswordExpires;
   return user;
 };
 

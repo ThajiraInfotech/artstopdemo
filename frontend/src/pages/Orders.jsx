@@ -5,14 +5,61 @@ import { Package, Clock, CheckCircle, Truck, Eye } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { getOrders } from '../data/mock';
+import { ordersApi } from '../lib/api';
+import { useToast } from '../hooks/use-toast';
+import OrderDetailModal from '../components/OrderDetailModal';
+import OrderTrackingModal from '../components/OrderTrackingModal';
 
 const Orders = () => {
   const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
-    setOrders(getOrders());
+    fetchOrders();
   }, []);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const response = await ordersApi.getUserOrders();
+      if (response.success) {
+        setOrders(response.data.orders || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch orders:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load orders",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewDetails = (orderId) => {
+    setSelectedOrderId(orderId);
+    setIsDetailModalOpen(true);
+  };
+
+  const handleTrackOrder = (orderId) => {
+    setSelectedOrderId(orderId);
+    setIsTrackingModalOpen(true);
+  };
+
+  const closeDetailModal = () => {
+    setIsDetailModalOpen(false);
+    setSelectedOrderId(null);
+  };
+
+  const closeTrackingModal = () => {
+    setIsTrackingModalOpen(false);
+    setSelectedOrderId(null);
+  };
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -58,6 +105,25 @@ const Orders = () => {
       transition: { duration: 0.5 }
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-16">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <div className="inline-flex items-center gap-2 text-gray-600">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600"></div>
+              Loading orders...
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   if (orders.length === 0) {
     return (
@@ -117,7 +183,7 @@ const Orders = () => {
         >
           {orders.map((order, index) => (
             <motion.div
-              key={order.id}
+              key={order._id}
               variants={cardVariants}
               whileHover={{ y: -4 }}
               transition={{ duration: 0.3 }}
@@ -131,8 +197,8 @@ const Orders = () => {
                         <Package className="h-6 w-6 text-amber-600" />
                       </div>
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-900">Order #{order.id}</h3>
-                        <p className="text-sm text-gray-500">Placed on {new Date(order.date).toLocaleDateString()}</p>
+                        <h3 className="text-lg font-semibold text-gray-900">Order #{order.orderNumber}</h3>
+                        <p className="text-sm text-gray-500">Placed on {new Date(order.createdAt).toLocaleDateString()}</p>
                       </div>
                     </div>
                     
@@ -159,19 +225,24 @@ const Orders = () => {
                         className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-200"
                       >
                         <div className="w-16 h-16 bg-white rounded-lg overflow-hidden flex-shrink-0">
-                          <img 
-                            src={item.image}
+                          <img
+                            src={
+                              item.product?.media?.find(m => m.type === 'image')?.url ||
+                              item.image ||
+                              `https://picsum.photos/seed/${encodeURIComponent(item.name)}/100/100`
+                            }
                             alt={item.name}
                             className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = `https://picsum.photos/seed/${encodeURIComponent(item.name)}/100/100`;
+                            }}
                           />
                         </div>
                         
                         <div className="flex-1 min-w-0">
-                          <Link to={`/product/${item.id}`}>
-                            <h4 className="text-sm font-medium text-gray-900 hover:text-amber-600 transition-colors line-clamp-2">
-                              {item.name}
-                            </h4>
-                          </Link>
+                          <h4 className="text-sm font-medium text-gray-900 line-clamp-2">
+                            {item.name}
+                          </h4>
                           <div className="flex items-center justify-between mt-2">
                             <span className="text-sm text-gray-500">Qty: {item.quantity}</span>
                             <span className="text-sm font-medium text-gray-900">
@@ -185,23 +256,30 @@ const Orders = () => {
 
                   {/* Order Actions */}
                   <div className="flex flex-col sm:flex-row gap-3 mt-6 pt-4 border-t">
-                    <Button variant="outline" className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      className="flex items-center space-x-2"
+                      onClick={() => handleViewDetails(order._id)}
+                    >
                       <Eye className="h-4 w-4" />
                       <span>View Details</span>
                     </Button>
-                    
+
                     {order.status === 'delivered' && (
                       <Button variant="outline">
                         Write Review
                       </Button>
                     )}
-                    
+
                     {order.status !== 'delivered' && (
-                      <Button variant="outline">
+                      <Button
+                        variant="outline"
+                        onClick={() => handleTrackOrder(order._id)}
+                      >
                         Track Order
                       </Button>
                     )}
-                    
+
                     <Button className="bg-black text-white hover:bg-gray-800">
                       Reorder Items
                     </Button>
@@ -234,6 +312,19 @@ const Orders = () => {
           </div>
         </motion.div>
       </div>
+
+      {/* Modals */}
+      <OrderDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={closeDetailModal}
+        orderId={selectedOrderId}
+      />
+
+      <OrderTrackingModal
+        isOpen={isTrackingModalOpen}
+        onClose={closeTrackingModal}
+        orderId={selectedOrderId}
+      />
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Clock, Send } from 'lucide-react';
+import { Mail, Phone, Clock, Send } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -32,12 +33,6 @@ const Contact = () => {
       title: 'Email',
       content: 'info@artstop.com',
       description: 'We reply within 24 hours'
-    },
-    {
-      icon: MapPin,
-      title: 'Address',
-      content: '123 Art Street, Creative City, CC 12345',
-      description: 'Visit our showroom'
     },
     {
       icon: Clock,
@@ -99,83 +94,113 @@ const Contact = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 py-16">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Contact Us</h1>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            We'd love to hear from you. Send us a message and we'll respond as soon as possible.
+        <motion.div
+          className="text-center mb-16"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+        >
+          <h1 className="text-5xl lg:text-6xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-6">
+            Get In Touch
+          </h1>
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+            Ready to bring your vision to life? Let's create something beautiful together.
+            Reach out and let's start your artistic journey.
           </p>
-        </div>
+        </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-12">
           {/* Contact Information */}
-          <div className="lg:col-span-1 space-y-6">
-            <Card>
-              <CardContent className="p-6">
-                <h2 className="text-xl font-semibold mb-6">Get in Touch</h2>
-                <div className="space-y-6">
+          <motion.div
+            className="lg:col-span-2 space-y-8"
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+          >
+            <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+              <CardContent className="p-8">
+                <h2 className="text-2xl font-bold text-gray-900 mb-8">Let's Connect</h2>
+                <div className="space-y-8">
                   {contactInfo.map((info, index) => (
-                    <div key={index} className="flex items-start space-x-4">
-                      <div className="bg-amber-100 p-3 rounded-lg">
-                        <info.icon className="h-6 w-6 text-amber-600" />
+                    <motion.div
+                      key={index}
+                      className="flex items-start space-x-4 group"
+                      whileHover={{ x: 5 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-4 rounded-2xl shadow-lg group-hover:shadow-xl transition-all duration-300">
+                        <info.icon className="h-6 w-6 text-white" />
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900 mb-1">{info.title}</h3>
-                        <p className="text-gray-700 mb-1">{info.content}</p>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-gray-900 mb-2 text-lg">{info.title}</h3>
+                        <p className="text-gray-700 mb-1 font-medium">{info.content}</p>
                         <p className="text-sm text-gray-500">{info.description}</p>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               </CardContent>
             </Card>
 
-            {/* FAQ Section */}
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Frequently Asked Questions</h3>
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-1">What materials do you use?</h4>
-                    <p className="text-sm text-gray-600">We use premium materials including stainless steel, acrylic, wood, and canvas.</p>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-1">How long does shipping take?</h4>
-                    <p className="text-sm text-gray-600">Standard shipping takes 5-7 business days, express shipping 2-3 days.</p>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-1">Do you offer custom designs?</h4>
-                    <p className="text-sm text-gray-600">Yes! We specialize in custom Islamic art and home decor pieces.</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+            {/* Quick Actions */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.4 }}
+              className="space-y-4"
+            >
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Button className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl py-4 rounded-2xl font-bold text-lg transition-all duration-300 flex items-center justify-center">
+                  <Phone className="h-6 w-6 mr-3" />
+                  Call Now
+                </Button>
+              </motion.div>
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Button className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl py-4 rounded-2xl font-bold text-lg transition-all duration-300 flex items-center justify-center">
+                  <Mail className="h-6 w-6 mr-3" />
+                  Email Support
+                </Button>
+              </motion.div>
+            </motion.div>
+          </motion.div>
 
           {/* Contact Form */}
-          <div className="lg:col-span-2">
-            <Card>
-              <CardContent className="p-8">
-                <h2 className="text-2xl font-semibold mb-6">Send us a Message</h2>
-                
-                <form onSubmit={handleSubmit} className="space-y-6">
+          <motion.div
+            className="lg:col-span-3"
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8, delay: 0.3 }}
+          >
+            <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+              <CardContent className="p-8 lg:p-10">
+                <h2 className="text-3xl font-bold text-gray-900 mb-8">Send us a Message</h2>
+
+                <form onSubmit={handleSubmit} className="space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <Label htmlFor="name">Full Name *</Label>
+                    <div className="space-y-2">
+                      <Label htmlFor="name" className="text-gray-700 font-semibold">Full Name *</Label>
                       <Input
                         id="name"
                         name="name"
                         value={formData.name}
                         onChange={handleInputChange}
                         placeholder="Your full name"
+                        className="h-12 border-2 border-gray-200 focus:border-blue-500 rounded-xl transition-all duration-300"
                         required
                       />
                     </div>
-                    
-                    <div>
-                      <Label htmlFor="email">Email Address *</Label>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="email" className="text-gray-700 font-semibold">Email Address *</Label>
                       <Input
                         id="email"
                         name="email"
@@ -183,14 +208,15 @@ const Contact = () => {
                         value={formData.email}
                         onChange={handleInputChange}
                         placeholder="your.email@example.com"
+                        className="h-12 border-2 border-gray-200 focus:border-blue-500 rounded-xl transition-all duration-300"
                         required
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <Label htmlFor="phone">Phone Number</Label>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone" className="text-gray-700 font-semibold">Phone Number</Label>
                       <Input
                         id="phone"
                         name="phone"
@@ -198,13 +224,14 @@ const Contact = () => {
                         value={formData.phone}
                         onChange={handleInputChange}
                         placeholder="+1 (555) 123-4567"
+                        className="h-12 border-2 border-gray-200 focus:border-blue-500 rounded-xl transition-all duration-300"
                       />
                     </div>
-                    
-                    <div>
-                      <Label htmlFor="inquiry">Inquiry Type</Label>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="inquiry" className="text-gray-700 font-semibold">Inquiry Type</Label>
                       <Select value={formData.inquiry} onValueChange={(value) => handleSelectChange('inquiry', value)}>
-                        <SelectTrigger>
+                        <SelectTrigger className="h-12 border-2 border-gray-200 focus:border-blue-500 rounded-xl transition-all duration-300">
                           <SelectValue placeholder="Select inquiry type" />
                         </SelectTrigger>
                         <SelectContent>
@@ -219,19 +246,20 @@ const Contact = () => {
                     </div>
                   </div>
 
-                  <div>
-                    <Label htmlFor="subject">Subject</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="subject" className="text-gray-700 font-semibold">Subject</Label>
                     <Input
                       id="subject"
                       name="subject"
                       value={formData.subject}
                       onChange={handleInputChange}
                       placeholder="Brief subject of your message"
+                      className="h-12 border-2 border-gray-200 focus:border-blue-500 rounded-xl transition-all duration-300"
                     />
                   </div>
 
-                  <div>
-                    <Label htmlFor="message">Message *</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="message" className="text-gray-700 font-semibold">Message *</Label>
                     <Textarea
                       id="message"
                       name="message"
@@ -239,20 +267,21 @@ const Contact = () => {
                       onChange={handleInputChange}
                       placeholder="Tell us how we can help you..."
                       rows={6}
+                      className="border-2 border-gray-200 focus:border-blue-500 rounded-xl transition-all duration-300 resize-none"
                       required
                     />
                   </div>
 
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     disabled={isSubmitting}
-                    className="w-full bg-black text-white hover:bg-gray-800 py-3 text-lg font-medium rounded-full"
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-4 text-lg font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02]"
                   >
                     {isSubmitting ? (
                       <>Sending...</>
                     ) : (
                       <>
-                        <Send className="h-5 w-5 mr-2" />
+                        <Send className="h-5 w-5 mr-3" />
                         Send Message
                       </>
                     )}
@@ -260,45 +289,10 @@ const Contact = () => {
                 </form>
               </CardContent>
             </Card>
-          </div>
+          </motion.div>
         </div>
 
-        {/* Map Section */}
-        <div className="mt-16">
-          <Card>
-            <CardContent className="p-0">
-              <div className="h-64 bg-gray-200 rounded-lg flex items-center justify-center">
-                <div className="text-center text-gray-500">
-                  <MapPin className="h-12 w-12 mx-auto mb-4" />
-                  <p className="text-lg font-medium">Interactive Map</p>
-                  <p className="text-sm">123 Art Street, Creative City, CC 12345</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
-        {/* Additional Contact Options */}
-        <div className="mt-16 text-center">
-          <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-8 lg:p-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Need Immediate Assistance?
-            </h2>
-            <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
-              For urgent matters or quick questions, reach out to us directly through these channels.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button className="bg-black text-white hover:bg-gray-800 px-8 py-3 text-lg font-medium rounded-full">
-                <Phone className="h-5 w-5 mr-2" />
-                Call Now
-              </Button>
-              <Button variant="outline" className="border-2 border-amber-600 text-amber-600 hover:bg-amber-600 hover:text-white px-8 py-3 text-lg font-medium rounded-full">
-                <Mail className="h-5 w-5 mr-2" />
-                Email Us
-              </Button>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -5,12 +5,15 @@ import { ArrowRight, Star } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import ProductCard from '../components/ProductCard';
-import { categories, products, instagramReels, testimonials, instagramProfileUrl } from '../data/mock';
+import { productsApi, categoriesApi } from '../lib/api';
+import { categories as mockCategories, products as mockProducts, instagramReels, testimonials, instagramProfileUrl } from '../data/mock';
 
 const Home = () => {
-  const displayedProducts = products.slice(0, 6);
   const { scrollY } = useScroll();
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [displayedProducts, setDisplayedProducts] = useState([]);
+  const [categories, setCategories] = useState(mockCategories);
+  const [loading, setLoading] = useState(true);
 
   // Parallax effects
   const heroY = useTransform(scrollY, [0, 500], [0, -150]);
@@ -23,6 +26,46 @@ const Home = () => {
 
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
+  // Fetch data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+
+        // Fetch categories
+        try {
+          const categoriesResponse = await categoriesApi.getAll();
+          setCategories(categoriesResponse.data?.categories || mockCategories);
+        } catch (catError) {
+          console.warn('Failed to fetch categories from API, using mock data:', catError);
+          setCategories(mockCategories);
+        }
+
+        // Fetch latest products
+        try {
+          const productsResponse = await productsApi.getAll({
+            sort: 'newest',
+            limit: 6
+          });
+          setDisplayedProducts(productsResponse.data?.products || mockProducts.slice(0, 6));
+        } catch (prodError) {
+          console.warn('Failed to fetch products from API, using mock data:', prodError);
+          setDisplayedProducts(mockProducts.slice(0, 6));
+        }
+
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+        // Fallback to mock data
+        setCategories(mockCategories);
+        setDisplayedProducts(mockProducts.slice(0, 6));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
   const containerVariants = {
@@ -203,7 +246,7 @@ const Home = () => {
           >
             {categories.map((category, index) => (
               <motion.div
-                key={category.id}
+                key={category.id || category._id || category.slug || index}
                 variants={itemVariants}
                 whileHover={{ y: -8 }}
                 transition={{ duration: 0.3 }}
@@ -256,7 +299,10 @@ const Home = () => {
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
           >
-            <h2 className="text-3xl lg:text-4xl font-bold text-gray-900">Products</h2>
+            <div>
+              <h2 className="text-3xl lg:text-4xl font-bold text-gray-900">Latest Products</h2>
+              <p className="text-gray-600 mt-2">Discover our newest additions to the collection</p>
+            </div>
             <Link to="/products">
               <motion.div
                 whileHover={{ scale: 1.05 }}
@@ -272,14 +318,24 @@ const Home = () => {
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {displayedProducts.map((product, index) => (
-              <ProductCard key={product.id} product={product} index={index} />
+              <ProductCard key={product.id || product._id || index} product={product} index={index} />
             ))}
+          </div>
+
+          {/* CTA Button */}
+          <div className="flex justify-center mt-8">
+            <Link to="/products">
+              <Button className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-6 py-3 rounded-full font-semibold">
+                View All Products
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
           </div>
         </div>
       </motion.section>
 
       {/* Instagram Reels Section */}
-      <motion.section 
+      <motion.section
         initial={{ opacity: 0 }}
         whileInView={{ opacity: 1 }}
         viewport={{ once: true, amount: 0.2 }}
@@ -287,7 +343,7 @@ const Home = () => {
         className="py-16 bg-white"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div 
+          <motion.div
             className="text-center mb-12"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -302,14 +358,14 @@ const Home = () => {
             </p>
             <div className="mt-4">
               <a href={instagramProfileUrl} target="_blank" rel="noopener noreferrer">
-                <Button size="sm" className="bg-pink-500 hover:bg-pink-600 text-white">
+                <Button size="sm" className="bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 hover:from-pink-600 hover:via-red-600 hover:to-yellow-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-6 py-2 rounded-full font-semibold">
                   Follow us on Instagram
                 </Button>
               </a>
             </div>
           </motion.div>
-          
-          <motion.div 
+
+          <motion.div
             className="grid grid-cols-2 lg:grid-cols-4 gap-6"
             variants={containerVariants}
             initial="hidden"

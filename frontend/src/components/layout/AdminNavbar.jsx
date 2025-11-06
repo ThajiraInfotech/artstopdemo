@@ -51,6 +51,22 @@ const AdminNavbar = () => {
               Orders
             </NavLink>
             <NavLink
+              to="/admin/products"
+              className={({ isActive }) =>
+                `${linkBase} ${isActive ? linkActive : linkInactive}`
+              }
+            >
+              Products
+            </NavLink>
+            <NavLink
+              to="/admin/products"
+              className={({ isActive }) =>
+                `${linkBase} ${isActive ? linkActive : linkInactive}`
+              }
+            >
+              Products
+            </NavLink>
+            <NavLink
               to="/admin/customers"
               className={({ isActive }) =>
                 `${linkBase} ${isActive ? linkActive : linkInactive}`
@@ -86,6 +102,14 @@ const AdminNavbar = () => {
               }
             >
               Dashboard
+            </NavLink>
+            <NavLink
+              to="/admin/products"
+              className={({ isActive }) =>
+                `${linkBase} ${isActive ? linkActive : linkInactive}`
+              }
+            >
+              Products
             </NavLink>
             <NavLink
               to="/admin/orders"

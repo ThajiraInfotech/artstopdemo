@@ -59,17 +59,23 @@ exports.validateProduct = [
     .withMessage('Category is required'),
   body('collection')
     .trim()
-    .notEmpty()
-    .withMessage('Collection is required'),
+    .isLength({ min: 1 })
+    .withMessage('Collection is required and cannot be empty'),
   body('price')
     .isFloat({ min: 0 })
     .withMessage('Price must be a positive number'),
-  body('images')
+  body('media')
     .isArray({ min: 1 })
-    .withMessage('At least one image is required'),
-  body('images.*')
-    .isURL()
-    .withMessage('Each image must be a valid URL'),
+    .withMessage('At least one media item is required'),
+  body('media.*.url')
+    .isLength({ min: 1 })
+    .withMessage('Media URL cannot be empty'),
+  body('media.*.type')
+    .isIn(['image', 'video'])
+    .withMessage('Media type must be image or video'),
+  body('media.*.color')
+    .optional()
+    .trim(),
   exports.handleValidationErrors
 ];
 

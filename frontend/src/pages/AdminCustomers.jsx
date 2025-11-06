@@ -1,89 +1,58 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
-
-const LS_KEY = "artstop_customers";
-
-const seedCustomers = [
-  {
-    id: 1,
-    name: "Ahmed Hassan",
-    email: "ahmed@example.com",
-    phone: "+91 90000 11111",
-    address: "12, MG Road, Bengaluru, KA",
-    joinedAt: "2025-01-15T10:00:00.000Z",
-  },
-  {
-    id: 2,
-    name: "Fatima Ali",
-    email: "fatima@example.com",
-    phone: "+91 98888 22222",
-    address: "45, Anna Salai, Chennai, TN",
-    joinedAt: "2025-01-10T12:00:00.000Z",
-  },
-];
-
-function getCustomers() {
-  try {
-    const stored = localStorage.getItem(LS_KEY);
-    return stored ? JSON.parse(stored) : seedCustomers;
-  } catch {
-    return seedCustomers;
-  }
-}
-
-function saveCustomers(items) {
-  localStorage.setItem(LS_KEY, JSON.stringify(items));
-  window.dispatchEvent(new CustomEvent("adminCustomersUpdated"));
-}
-
-const nextId = (items) => (items.length ? Math.max(...items.map((i) => i.id || 0)) + 1 : 1);
+import { Badge } from "../components/ui/badge";
+import { useToast } from "../hooks/use-toast";
+import { adminApi, ApiError } from "../lib/api";
+import { Search, RefreshCw, Users, Calendar, Mail, Phone, MapPin } from "lucide-react";
 
 const AdminCustomers = () => {
+  const { toast } = useToast();
   const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("new"); // new | old | name
+  const [sortBy, setSortBy] = useState("newest"); // newest | oldest | name
 
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    address: "",
-  });
-
-  useEffect(() => {
-    setCustomers(getCustomers());
-    const handler = () => setCustomers(getCustomers());
-    window.addEventListener("adminCustomersUpdated", handler);
-    return () => window.removeEventListener("adminCustomersUpdated", handler);
-  }, []);
-
-  const refresh = () => {
-    setCustomers(getCustomers());
+  const fetchCustomers = async () => {
+    try {
+      setLoading(true);
+      const response = await adminApi.getCustomers({ limit: 50 });
+      setCustomers(response.data.customers || []);
+    } catch (error) {
+      console.error('Failed to fetch customers:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load customers",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const filtered = useMemo(() => {
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
+  const filteredCustomers = useMemo(() => {
     let list = Array.isArray(customers) ? [...customers] : [];
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter((c) => {
         return (
-          c.name.toLowerCase().includes(q) ||
-          c.email.toLowerCase().includes(q) ||
-          (c.phone || "").toLowerCase().includes(q) ||
-          (c.address || "").toLowerCase().includes(q)
+          c.name?.toLowerCase().includes(q) ||
+          c.email?.toLowerCase().includes(q) ||
+          (c.phone || "").toLowerCase().includes(q)
         );
       });
     }
     list.sort((a, b) => {
       if (sortBy === "name") {
-        return a.name.localeCompare(b.name);
+        return (a.name || "").localeCompare(b.name || "");
       }
-      const da = new Date(a.joinedAt).getTime();
-      const db = new Date(b.joinedAt).getTime();
-      return sortBy === "new" ? db - da : da - db;
+      const da = new Date(a.createdAt || a.joinedAt).getTime();
+      const db = new Date(b.createdAt || b.joinedAt).getTime();
+      return sortBy === "newest" ? db - da : da - db;
     });
     return list;
   }, [customers, search, sortBy]);
@@ -92,48 +61,18 @@ const AdminCustomers = () => {
     const total = customers.length;
     const now = Date.now();
     const THIRTY_D = 30 * 24 * 60 * 60 * 1000;
-    const recent = customers.filter((c) => now - new Date(c.joinedAt).getTime() <= THIRTY_D).length;
-    return { total, recent30: recent };
+    const recent = customers.filter((c) =>
+      now - new Date(c.createdAt || c.joinedAt).getTime() <= THIRTY_D
+    ).length;
+    const active = customers.filter(c => c.isActive !== false).length;
+    return { total, recent30: recent, active };
   }, [customers]);
 
-  const resetForm = () => {
-    setForm({ name: "", email: "", phone: "", address: "" });
-  };
-
-  const handleAddCustomer = (e) => {
-    e?.preventDefault?.();
-    const name = form.name.trim();
-    const email = form.email.trim();
-    if (!name || !email) {
-      alert("Name and email are required.");
-      return;
-    }
-    const newCustomer = {
-      id: nextId(customers),
-      name,
-      email,
-      phone: form.phone.trim(),
-      address: form.address.trim(),
-      joinedAt: new Date().toISOString(),
-    };
-    const next = [...customers, newCustomer];
-    saveCustomers(next);
-    setCustomers(next);
-    resetForm();
-  };
-
-  const handleDelete = (id) => {
-    if (!confirm("Delete this customer?")) return;
-    const next = customers.filter((c) => c.id !== id);
-    saveCustomers(next);
-    setCustomers(next);
-  };
-
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] bg-gradient-to-b from-gray-50 to-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white lg:ml-64">
+      <div className="p-4 lg:p-8 pt-16 lg:pt-8">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <img
               src="/artstoplogo.png"
@@ -141,40 +80,39 @@ const AdminCustomers = () => {
               className="h-8 w-auto object-contain drop-shadow-sm"
             />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
-              <p className="text-gray-600">View and manage customer details</p>
+              <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Customers</h1>
+              <p className="text-sm lg:text-base text-gray-600">View customer information and activity</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="relative">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div className="relative flex-1 sm:flex-initial">
               <input
-                placeholder="Search name, email, phone..."
+                placeholder="Search customers..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-72 border-gray-300 rounded-md pl-10 pr-3 py-2"
+                className="w-full sm:w-64 border-gray-300 rounded-md pl-10 pr-3 py-2 text-sm"
               />
-              <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-              >
-                <path d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
             </div>
-            <Button variant="outline" className="border-gray-300" onClick={refresh}>
-              Refresh
+            <Button variant="outline" size="sm" className="border-gray-300" onClick={fetchCustomers}>
+              <RefreshCw className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <Card className="bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
             <CardContent className="p-5">
               <div className="text-sm text-gray-500">Total Customers</div>
               <div className="text-2xl font-semibold text-gray-900">{stats.total}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="p-5">
+              <div className="text-sm text-gray-500">Active Customers</div>
+              <div className="text-2xl font-semibold text-gray-900">{stats.active}</div>
             </CardContent>
           </Card>
           <Card className="bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
@@ -186,7 +124,7 @@ const AdminCustomers = () => {
           <Card className="bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
             <CardContent className="p-5">
               <div className="text-sm text-gray-500">Showing</div>
-              <div className="text-2xl font-semibold text-gray-900">{filtered.length}</div>
+              <div className="text-2xl font-semibold text-gray-900">{filteredCustomers.length}</div>
             </CardContent>
           </Card>
         </div>
@@ -201,114 +139,91 @@ const AdminCustomers = () => {
                 onChange={(e) => setSortBy(e.target.value)}
                 className="py-2 px-3 border-gray-300 rounded-md"
               >
-                <option value="new">Newest</option>
-                <option value="old">Oldest</option>
-                <option value="name">Name</option>
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="name">Name A-Z</option>
               </select>
             </div>
           </CardContent>
         </Card>
 
-        {/* Add Customer */}
-        <Card className="bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 border border-gray-200 rounded-lg shadow-sm mb-6">
-          <CardContent className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Customer</h3>
-            <form onSubmit={handleAddCustomer} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  placeholder="Full name"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="name@example.com"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="phone">Phone</Label>
-                <Input
-                  id="phone"
-                  placeholder="+91 ..."
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="address">Address</Label>
-                <Input
-                  id="address"
-                  placeholder="Street, City, State"
-                  value={form.address}
-                  onChange={(e) => setForm({ ...form, address: e.target.value })}
-                />
-              </div>
-              <div className="sm:col-span-2 flex gap-3">
-                <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">
-                  Add Customer
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-gray-300"
-                  onClick={resetForm}
-                >
-                  Reset
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-
         {/* Customers List */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {filtered.map((c) => (
-            <Card key={c.id} className="bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-base font-semibold text-gray-900 truncate">{c.name}</div>
-                    <div className="text-sm text-gray-600 truncate">{c.email}</div>
-                    {c.phone && (
-                      <div className="text-sm text-gray-600 mt-1 truncate">{c.phone}</div>
-                    )}
-                    {c.address && (
-                      <div className="text-sm text-gray-600 mt-1 truncate">{c.address}</div>
-                    )}
-                    <div className="text-xs text-gray-500 mt-2">
-                      Joined: {new Date(c.joinedAt).toLocaleDateString()}
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="inline-flex items-center gap-2 text-gray-600">
+              <RefreshCw className="h-5 w-5 animate-spin" />
+              Loading customers...
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+            {filteredCustomers.map((customer) => (
+              <Card key={customer._id} className="bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-4 lg:p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 lg:w-12 lg:h-12 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <Users className="h-5 w-5 lg:h-6 lg:w-6 text-indigo-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base lg:text-lg font-semibold text-gray-900 truncate">
+                        {customer.name}
+                      </h3>
+
+                      <div className="space-y-2 mt-3">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Mail className="h-3 w-3 lg:h-4 lg:w-4 flex-shrink-0" />
+                          <span className="truncate">{customer.email}</span>
+                        </div>
+
+                        {customer.phone && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Phone className="h-3 w-3 lg:h-4 lg:w-4 flex-shrink-0" />
+                            <span>{customer.phone}</span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Calendar className="h-3 w-3 lg:h-4 lg:w-4 flex-shrink-0" />
+                          <span>
+                            Joined {new Date(customer.createdAt || customer.joinedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 mt-3 flex-wrap">
+                          <Badge
+                            variant={customer.isActive !== false ? "default" : "secondary"}
+                            className="text-xs"
+                          >
+                            {customer.isActive !== false ? "Active" : "Inactive"}
+                          </Badge>
+                          {customer.role && (
+                            <Badge variant="outline" className="text-xs">
+                              {customer.role}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {customer.orderCount !== undefined && (
+                          <div className="text-xs lg:text-sm text-gray-500 mt-2">
+                            {customer.orderCount} orders • ₹{customer.totalSpent?.toLocaleString() || 0} spent
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      className="border-gray-300 text-red-600 hover:bg-red-50"
-                      onClick={() => handleDelete(c.id)}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
 
-          {!filtered.length && (
-            <Card className="bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 border border-gray-200 rounded-lg shadow-sm">
-              <CardContent className="p-8 text-center text-gray-600">
-                No customers found with current filters.
-              </CardContent>
-            </Card>
-          )}
-        </div>
+        {!loading && filteredCustomers.length === 0 && (
+          <Card className="bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 border border-gray-200 rounded-lg shadow-sm">
+            <CardContent className="p-8 text-center text-gray-600">
+              {customers.length === 0 ? "No customers found." : "No customers match your search."}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

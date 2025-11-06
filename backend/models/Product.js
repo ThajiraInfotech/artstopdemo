@@ -63,9 +63,20 @@ const productSchema = new mongoose.Schema({
     type: Number,
     min: [0, 'Old price cannot be negative']
   },
-  images: [{
-    type: String,
-    required: true
+  media: [{
+    url: {
+      type: String,
+      required: true
+    },
+    type: {
+      type: String,
+      enum: ['image', 'video'],
+      required: true
+    },
+    color: {
+      type: String,
+      trim: true
+    }
   }],
   variants: [variantSchema],
   colors: [{
@@ -133,16 +144,26 @@ const productSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Generate slug from name before saving
-productSchema.pre('save', function(next) {
+// Generate unique slug from name before saving
+productSchema.pre('save', async function(next) {
   if (this.isModified('name') && this.name) {
-    this.slug = this.name
+    let baseSlug = this.name
       .toLowerCase()
       .replace(/[^a-zA-Z0-9 ]/g, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '')
       .trim() || 'product';
+
+    // Check if slug already exists
+    const existingProduct = await this.constructor.findOne({ slug: baseSlug });
+
+    if (existingProduct && existingProduct._id.toString() !== this._id.toString()) {
+      // Add timestamp suffix to make it unique
+      baseSlug = `${baseSlug}-${Date.now()}`;
+    }
+
+    this.slug = baseSlug;
   }
   next();
 });

@@ -1,19 +1,116 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { categories, products } from '../data/mock';
+import { categoriesApi } from '../lib/api';
 
 const Collections = () => {
   const { category } = useParams();
+  const [categoryInfo, setCategoryInfo] = useState(null);
+  const [collectionsWithCounts, setCollectionsWithCounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const categoryInfo = categories.find(cat => cat.slug === category);
+  useEffect(() => {
+    const fetchCategoryData = async () => {
+      try {
+        setLoading(true);
+        const response = await categoriesApi.getBySlug(category);
+        const categoryData = response.data.category;
 
-  if (!categoryInfo) {
+        if (!categoryData) {
+          setError('Category not found');
+          return;
+        }
+
+        setCategoryInfo(categoryData);
+
+        // Calculate product counts for each collection
+        const collections = categoryData.collections.map(collection => {
+          // For now, we'll need to fetch products for each collection to get counts
+          // This could be optimized by having the backend return collection counts
+          const image = (categoryData.collectionImages && categoryData.collectionImages[collection])
+            ? categoryData.collectionImages[collection]
+            : (categoryData.collectionImages && typeof categoryData.collectionImages.get === 'function' && categoryData.collectionImages.get(collection))
+            ? categoryData.collectionImages.get(collection)
+            : `https://picsum.photos/seed/${encodeURIComponent(collection)}/600/400`;
+
+          console.log('Collection debug:', {
+            collection,
+            collectionImages: categoryData.collectionImages,
+            image,
+            hasCustomImage: image !== `https://picsum.photos/seed/${encodeURIComponent(collection)}/600/400`
+          });
+
+          return {
+            name: collection,
+            slug: collection, // Use collection name directly as slug
+            productCount: 0, // Will be updated after fetching
+            image
+          };
+        });
+
+        // Fetch product counts for each collection
+        const updatedCollections = await Promise.all(
+          collections.map(async (collection) => {
+            try {
+              const productsResponse = await categoriesApi.getCollectionProducts(category, collection.name, { limit: 1 });
+              return {
+                ...collection,
+                productCount: productsResponse.data.pagination?.totalProducts || 0
+              };
+            } catch (err) {
+              console.error(`Error fetching products for collection ${collection.name}:`, err);
+              return collection; // Return with 0 count on error
+            }
+          })
+        );
+
+        setCollectionsWithCounts(updatedCollections);
+      } catch (err) {
+        console.error('Error fetching category:', err);
+        setError('Failed to load category data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (category) {
+      fetchCategoryData();
+    }
+  }, [category]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
+          <div className="text-center">
+            <div className="inline-block bg-indigo-50 p-3 rounded-2xl mb-6">
+              <div className="bg-white p-2 rounded-xl">
+                <svg className="w-10 h-10 text-indigo-500 mx-auto animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </div>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">Loading Collections...</h1>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !categoryInfo) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Category not found</h1>
+          <div className="inline-block bg-indigo-50 p-3 rounded-2xl mb-6">
+            <div className="bg-white p-2 rounded-xl">
+              <svg className="w-10 h-10 text-red-500 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">{error || 'Category not found'}</h1>
           <Link to="/categories">
             <Button>Back to Categories</Button>
           </Link>
@@ -21,18 +118,6 @@ const Collections = () => {
       </div>
     );
   }
-
-  // Calculate product counts for each collection and attach images
-  const collectionsWithCounts = categoryInfo.collections.map(collection => ({
-    name: collection,
-    slug: collection.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
-    productCount: products.filter(product =>
-      product.category === category && product.collection === collection
-    ).length,
-    image: (categoryInfo.collectionImages && categoryInfo.collectionImages[collection])
-      ? categoryInfo.collectionImages[collection]
-      : `https://picsum.photos/seed/${encodeURIComponent(collection)}/600/400`
-  }));
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-8">
@@ -62,38 +147,46 @@ const Collections = () => {
         </div>
 
         {/* Collections Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {collectionsWithCounts.map((collection) => (
             <Link
-              key={collection.slug}
-              to={`/categories/${category}/collections/${collection.slug}`}
+              key={collection.name}
+              to={`/categories/${category}/collections/${encodeURIComponent(collection.name)}`}
+              className="group block"
             >
-              <Card className="bg-white border-0 shadow-md overflow-hidden group hover:shadow-lg transition-all duration-500 transform hover:-translate-y-2 rounded-xl">
-                <CardContent className="p-0 relative">
-                  <div className="h-48 overflow-hidden relative">
-                    <img
-                      src={collection.image}
-                      alt={`${collection.name} preview`}
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-gray-900/20 via-transparent to-transparent opacity-70 group-hover:opacity-80 transition-opacity duration-500"></div>
-                    <div className="absolute top-4 right-4">
-                      <span className="bg-white text-indigo-600 text-xs font-semibold px-3 py-1 rounded-full shadow-sm">
-                        {collection.productCount} items
-                      </span>
-                    </div>
-                  
-                  </div>
-                  <div className="p-6 flex flex-col justify-between gap-1 relative bg-white">
-                    <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-2 group-hover:text-indigo-600 transition-colors">
-                      {collection.name}
-                    </h3>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-500">View collection</span>
-                      <span className="text-indigo-600 font-medium group-hover:text-indigo-800 transition-colors transform group-hover:translate-x-1 duration-300">
-                        →
-                      </span>
+              <Card className="relative overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 rounded-xl h-[22rem] collection-card">
+                <CardContent className="p-0 h-full">
+                  {/* Full Image Background */}
+                  <img
+                    src={collection.image}
+                    alt={`${collection.name} preview`}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    loading="lazy"
+                  />
+
+                  {/* Text Overlay */}
+                  <div className="absolute inset-0">
+                    {/* Content positioned at bottom */}
+                    <div className="absolute bottom-0 left-0 right-0 p-4 backdrop-blur-md bg-black/40 rounded-b-xl">
+                      <h3 className="text-lg font-bold text-white mb-1 line-clamp-2">
+                        {collection.name}
+                      </h3>
+                      <p className="text-xs text-white/90 mb-2">
+                        Discover beautiful {collection.name.toLowerCase()} pieces crafted with care and attention to detail.
+                      </p>
+
+                      {/* Bottom Row */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-1 text-xs text-white/90">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          </svg>
+                          <span>{collection.productCount} items</span>
+                        </div>
+                        <Button className="text-white bg-white/20 backdrop-blur-sm hover:bg-white/30 border border-white/30 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors duration-200">
+                          Explore Collection
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </CardContent>

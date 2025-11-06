@@ -1,0 +1,27 @@
+{
+  "name": "ArtStop - Your One-Stop Shop for Artistic Creations",
+  "short_name": "ArtStop",
+  "description": "Discover unique artistic creations, customize your pieces, and shop from talented artists at ArtStop.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/artstoplogo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/artstoplogo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["shopping", "art", "lifestyle"],
+  "lang": "en",
+  "dir": "ltr"
+}

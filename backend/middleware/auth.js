@@ -20,25 +20,35 @@ exports.protect = async (req, res, next) => {
 
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // Get user from token
-    const user = await User.findById(decoded.id);
-    
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Token is not valid. User not found.'
-      });
-    }
 
-    if (!user.isActive) {
-      return res.status(401).json({
-        success: false,
-        message: 'Account is deactivated.'
-      });
-    }
+    // Check if this is an admin token (mock user)
+    if (decoded.userId === 'admin-user-id' && decoded.role === 'admin') {
+      req.user = {
+        _id: '507f1f77bcf86cd799439011', // Valid ObjectId for admin
+        name: 'Admin',
+        email: decoded.email,
+        role: 'admin'
+      };
+    } else {
+      // Get user from token
+      const user = await User.findById(decoded.userId);
 
-    req.user = user;
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Token is not valid. User not found.'
+        });
+      }
+
+      if (!user.isActive) {
+        return res.status(401).json({
+          success: false,
+          message: 'Account is deactivated.'
+        });
+      }
+
+      req.user = user;
+    }
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);
@@ -87,10 +97,21 @@ exports.optionalAuth = async (req, res, next) => {
 
     if (token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.id);
-      
-      if (user && user.isActive) {
-        req.user = user;
+
+      // Check if this is an admin token
+      if (decoded.userId === 'admin-user-id' && decoded.role === 'admin') {
+        req.user = {
+          _id: '507f1f77bcf86cd799439011', // Valid ObjectId for admin
+          name: 'Admin',
+          email: decoded.email,
+          role: 'admin'
+        };
+      } else {
+        const user = await User.findById(decoded.userId);
+
+        if (user && user.isActive) {
+          req.user = user;
+        }
       }
     }
     

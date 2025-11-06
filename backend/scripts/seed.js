@@ -28,7 +28,7 @@ const seedData = async () => {
 
     // Create admin user
     console.log('Creating admin user...');
-    const adminPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 12);
+    const adminPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'Admin123', 12);
     const admin = await User.create({
       name: 'Admin',
       email: process.env.ADMIN_EMAIL || 'admin@artstop.com',
@@ -38,14 +38,14 @@ const seedData = async () => {
     console.log(`Admin created: ${admin.email}`);
 
     // Create sample user
-    const userPassword = await bcrypt.hash('user123', 12);
+    const userPassword = await bcrypt.hash('User123', 12);
     const user = await User.create({
       name: 'John Doe',
       email: 'user@example.com',
       password: userPassword,
       role: 'user'
     });
-    console.log(`Sample user created: ${user.email}`);
+    console.log(`Sample user created: ${user.email} (password: User123)`);
 
     // Create categories
     console.log('Creating categories...');
@@ -317,7 +317,7 @@ const seedData = async () => {
     console.log('✅ Database seeded successfully!');
     console.log('\n📋 Created:');
     console.log(`- Admin user: ${admin.email} (password: ${process.env.ADMIN_PASSWORD || 'admin123'})`);
-    console.log(`- Sample user: ${user.email} (password: user123)`);
+    console.log(`- Sample user: ${user.email} (password: User123)`);
     console.log(`- ${createdCategories.length} categories`);
     console.log(`- ${createdProducts.length} products`);
     

@@ -48,6 +48,8 @@ POST   /logout          - User logout
 GET    /me              - Get current user profile
 PUT    /profile         - Update user profile
 PUT    /change-password - Change user password
+POST   /forgot-password - Request password reset
+PUT    /reset-password/:token - Reset password with token
 ```
 
 ### Product Routes (`/api/products`)
@@ -261,32 +263,88 @@ All API responses follow a consistent format:
 
 ## 🚀 Production Deployment
 
-### Environment Variables
-Set these in production:
+### Option 1: Render Deployment (Recommended)
+
+#### 1. Create a Render Account
+- Sign up at [render.com](https://render.com)
+- Connect your GitHub repository
+
+#### 2. Create a Web Service
+- Click "New" → "Web Service"
+- Connect your GitHub repo
+- Set the following configuration:
+  ```
+  Runtime: Node
+  Build Command: npm install
+  Start Command: npm start
+  Environment: Production
+  ```
+
+#### 3. Environment Variables
+Set these in Render dashboard:
 ```env
 NODE_ENV=production
-MONGO_URL=mongodb://your-production-db
-JWT_SECRET=your-production-secret
-FRONTEND_URL=https://your-frontend-domain.com
+PORT=10000
+MONGO_URL=mongodb+srv://your-mongodb-atlas-connection-string
+JWT_SECRET=your-production-jwt-secret-key
+JWT_REFRESH_SECRET=your-production-refresh-secret-key
+JWT_EXPIRE=7d
+JWT_REFRESH_EXPIRE=30d
+FRONTEND_URL=https://artsop-frontend.netlify.app
+ADMIN_EMAIL=admin@artstop.com
+ADMIN_PASSWORD=your-secure-admin-password
+CLOUDINARY_CLOUD_NAME=your-cloudinary-name
+CLOUDINARY_API_KEY=your-cloudinary-api-key
+CLOUDINARY_API_SECRET=your-cloudinary-api-secret
 ```
 
-### PM2 Process Manager
+#### 4. Database Setup
+- Create a MongoDB Atlas account at [mongodb.com/atlas](https://www.mongodb.com/atlas)
+- Create a free cluster
+- Get your connection string and whitelist Render's IP addresses
+- Update the `MONGO_URL` environment variable
+
+#### 5. Deploy
+- Push your code to GitHub
+- Render will automatically deploy your application
+- Your API will be available at `https://your-app-name.onrender.com`
+
+### Option 2: Docker Deployment
+
+#### Local Development with Docker
+```bash
+# Start the application with MongoDB
+docker-compose up -d
+
+# View logs
+docker-compose logs -f app
+
+# Stop the application
+docker-compose down
+```
+
+#### Production Docker Deployment
+```bash
+# Build the image
+docker build -t artstop-backend .
+
+# Run the container
+docker run -d \
+  --name artstop-api \
+  -p 8001:8001 \
+  -e NODE_ENV=production \
+  -e MONGO_URL=your-mongodb-url \
+  -e JWT_SECRET=your-jwt-secret \
+  -e FRONTEND_URL=https://artsop-frontend.netlify.app \
+  artstop-backend
+```
+
+### Option 3: PM2 Process Manager
 ```bash
 npm install -g pm2
 pm2 start server.js --name "artstop-api"
 pm2 startup
 pm2 save
-```
-
-### Docker Support
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-EXPOSE 8001
-CMD ["npm", "start"]
 ```
 
 ## 📊 Database Schema

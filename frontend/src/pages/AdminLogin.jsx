@@ -5,68 +5,83 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { useToast } from "../hooks/use-toast";
+import axios from "axios";
 
-const ADMIN_USER = "admin";
-const ADMIN_PASS = "admin123";
+const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001';
 
 const AdminLogin = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
-    username: "",
+    email: "",
     password: "",
     showPassword: false,
   });
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    // If already logged in, go to dashboard
+    // Clear any existing admin session to force fresh login
     try {
-      const session = localStorage.getItem("artstop_admin");
-      if (session) {
-        navigate("/admin/dashboard", { replace: true });
-      }
+      localStorage.removeItem("artstop_admin");
+      localStorage.removeItem("artstop_admin_token");
     } catch {
       // ignore
     }
-  }, [navigate]);
+  }, []);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (submitting) return;
 
-    const username = form.username.trim();
+    const email = form.email.trim();
     const password = form.password;
 
-    if (!username || !password) {
+    if (!email || !password) {
       toast({
         title: "Missing credentials",
-        description: "Enter both username and password.",
+        description: "Enter both email and password.",
       });
       return;
     }
 
     setSubmitting(true);
 
-    // Simple credential check (replace with real auth when backend is available)
-    setTimeout(() => {
-      if (username === ADMIN_USER && password === ADMIN_PASS) {
+    try {
+      const response = await axios.post(`${backendUrl}/api/auth/admin/login`, {
+        email,
+        password
+      });
+
+      if (response.data.success) {
+        // Store admin session
         localStorage.setItem(
           "artstop_admin",
-          JSON.stringify({ username, loggedInAt: Date.now() })
+          JSON.stringify({
+            user: response.data.data.user,
+            token: response.data.data.accessToken,
+            loggedInAt: Date.now()
+          })
         );
+
+        // Store admin token separately from user token
+        localStorage.setItem("artstop_admin_token", response.data.data.accessToken);
+
         window.dispatchEvent(new CustomEvent("adminAuthUpdated"));
         toast({ title: "Welcome", description: "Logged in to admin panel." });
         navigate("/admin/dashboard", { replace: true });
-      } else {
-        toast({
-          title: "Invalid credentials",
-          description: "The username or password is incorrect.",
-        });
       }
+    } catch (error) {
+      console.error("Admin login error:", error);
+      const errorMessage = error.response?.data?.message || "Login failed";
+      toast({
+        title: "Login failed",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    } finally {
       setSubmitting(false);
-    }, 400);
+    }
   };
 
   return (
@@ -88,13 +103,14 @@ const AdminLogin = () => {
           <CardContent className="p-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="email">Email</Label>
                 <Input
-                  id="username"
-                  placeholder="admin"
-                  value={form.username}
-                  onChange={(e) => setForm({ ...form, username: e.target.value })}
-                  autoComplete="username"
+                  id="email"
+                  type="email"
+                  placeholder="admin@artstop.com"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  autoComplete="email"
                 />
               </div>
 
@@ -130,9 +146,6 @@ const AdminLogin = () => {
                 {submitting ? "Signing in..." : "Sign In"}
               </Button>
 
-              <div className="text-xs text-gray-500 mt-2">
-                Hint: username: <b>admin</b>, password: <b>admin123</b>
-              </div>
             </form>
 
             <div className="mt-6 text-center">

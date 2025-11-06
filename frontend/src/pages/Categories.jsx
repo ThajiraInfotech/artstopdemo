@@ -1,30 +1,89 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { categories, products } from '../data/mock';
+import { categoriesApi } from '../lib/api';
 
 const Categories = () => {
   const [searchParams] = useSearchParams();
   const [activeCategory, setActiveCategory] = useState(searchParams.get('cat') || 'all');
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setLoading(true);
+        const response = await categoriesApi.getAll();
+        setCategories(response.data.categories || []);
+      } catch (err) {
+        console.error('Error fetching categories:', err);
+        setError('Failed to load categories');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const filterOptions = [
     { value: 'all', label: 'All' },
-    { value: 'islamic-art', label: 'Islamic Art' },
-    { value: 'home-decor', label: 'Home Decor' },
-    { value: 'gifts', label: 'Gifts' },
-    { value: 'cutouts-signage', label: 'Cutouts & Signage' }
+    ...categories.map(cat => ({ value: cat.slug, label: cat.name }))
   ];
 
   const filteredCategories = activeCategory === 'all'
     ? categories
     : categories.filter(cat => cat.slug === activeCategory);
 
-  // Calculate actual product counts for each category
+  // Use collection count from the category model
   const categoriesWithCounts = filteredCategories.map(category => ({
     ...category,
-    actualProductCount: products.filter(product => product.category === category.slug).length
+    actualCollectionCount: category.collections?.length || 0
   }));
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
+          <div className="text-center">
+            <div className="inline-block bg-indigo-50 p-3 rounded-2xl mb-6">
+              <div className="bg-white p-2 rounded-xl">
+                <svg className="w-10 h-10 text-indigo-500 mx-auto animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </div>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">Loading Categories...</h1>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
+          <div className="text-center">
+            <div className="inline-block bg-indigo-50 p-3 rounded-2xl mb-6">
+              <div className="bg-white p-2 rounded-xl">
+                <svg className="w-10 h-10 text-red-500 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">Error Loading Categories</h1>
+            <p className="text-gray-600 mb-8">{error}</p>
+            <Button onClick={() => window.location.reload()} className="bg-indigo-600 hover:bg-indigo-700">
+              Try Again
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-8">
@@ -60,7 +119,7 @@ const Categories = () => {
                     <div className="absolute inset-0 bg-gradient-to-t from-gray-900/30 via-transparent to-transparent opacity-70 group-hover:opacity-80 transition-opacity duration-500"></div>
                     <div className="absolute top-4 right-4">
                       <span className="bg-white text-indigo-600 text-xs font-semibold px-3 py-1 rounded-full shadow-sm">
-                        {category.actualProductCount} items
+                        {category.actualCollectionCount} collections
                       </span>
                     </div>
                   </div>

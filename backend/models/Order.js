@@ -56,7 +56,8 @@ const orderSchema = new mongoose.Schema({
   shippingAddress: {
     name: {
       type: String,
-      required: true
+      required: false,
+      default: ''
     },
     phone: {
       type: String,
@@ -68,19 +69,23 @@ const orderSchema = new mongoose.Schema({
     },
     street: {
       type: String,
-      required: true
+      required: false,
+      default: ''
     },
     city: {
       type: String,
-      required: true
+      required: false,
+      default: ''
     },
     state: {
       type: String,
-      required: true
+      required: false,
+      default: ''
     },
     zipCode: {
       type: String,
-      required: true
+      required: false,
+      default: ''
     },
     country: {
       type: String,
@@ -91,16 +96,22 @@ const orderSchema = new mongoose.Schema({
   paymentInfo: {
     method: {
       type: String,
-      enum: ['card', 'upi', 'netbanking', 'cod'],
+      enum: ['card', 'upi', 'netbanking', 'cod', 'razorpay'],
       required: true
     },
     status: {
       type: String,
-      enum: ['pending', 'completed', 'failed', 'refunded'],
+      enum: ['pending', 'completed', 'failed', 'refunded', 'partially_refunded'],
       default: 'pending'
     },
     transactionId: String,
-    paidAt: Date
+    razorpayOrderId: String,
+    razorpayPaymentId: String,
+    razorpayRefundId: String,
+    paidAt: Date,
+    refundedAt: Date,
+    refundAmount: Number,
+    refundReason: String
   },
   subtotal: {
     type: Number,
@@ -148,6 +159,5 @@ orderSchema.pre('save', function(next) {
 // Index for efficient queries
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ status: 1 });
-orderSchema.index({ orderNumber: 1 });
 
 module.exports = mongoose.model('Order', orderSchema);

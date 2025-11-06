@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Mail, Phone, Edit, LogOut, Package } from 'lucide-react';
+import { X, User, Mail, Phone, LogOut, Package } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 
@@ -38,19 +38,6 @@ const UserDetailsModal = ({ isOpen, onClose, user, onLogout, onEditProfile, onVi
                 </Button>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* User Avatar */}
-                <div className="flex items-center space-x-4">
-                  <img
-                    src={user.avatar}
-                    alt={user.name}
-                    className="w-16 h-16 rounded-full object-cover"
-                  />
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{user.name}</h3>
-                    <p className="text-sm text-gray-500">Member since 2024</p>
-                  </div>
-                </div>
-
                 {/* User Details */}
                 <div className="space-y-4">
                   <div className="flex items-center space-x-3">
@@ -82,16 +69,10 @@ const UserDetailsModal = ({ isOpen, onClose, user, onLogout, onEditProfile, onVi
 
                 {/* Action Buttons */}
                 <div className="space-y-3 pt-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <Button variant="outline" onClick={onViewOrders}>
-                      <Package className="h-4 w-4 mr-2" />
-                      My Orders
-                    </Button>
-                    <Button variant="outline" onClick={onEditProfile}>
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit Profile
-                    </Button>
-                  </div>
+                  <Button variant="outline" onClick={onViewOrders} className="w-full">
+                    <Package className="h-4 w-4 mr-2" />
+                    My Orders
+                  </Button>
                   <Button
                     variant="outline"
                     onClick={onLogout}

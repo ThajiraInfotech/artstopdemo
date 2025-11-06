@@ -10,22 +10,25 @@ import Collections from "./pages/Collections";
 import ProductListing from "./pages/ProductListing";
 import ProductDetail from "./pages/ProductDetail";
 import Cart from "./pages/Cart";
+import Checkout from "./pages/Checkout";
+import PaymentResult from "./pages/PaymentResult";
 import Wishlist from "./pages/Wishlist";
 import Orders from "./pages/Orders";
 import Customize from "./pages/Customize";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
+import Auth from "./pages/Auth";
 
 // Admin imports
-import Admin from "./pages/Admin"; // Acts as Dashboard
+import AdminDashboard from "./pages/AdminDashboard"; // New Dashboard
 import AdminLogin from "./pages/AdminLogin";
-import AdminNavbar from "./components/layout/AdminNavbar";
+import AdminSidebar from "./components/layout/AdminSidebar";
 
 // Lazy placeholders for admin subpages (to be created)
 import AdminOrders from "./pages/AdminOrders";
+import AdminProducts from "./pages/AdminProducts";
 import AdminCustomers from "./pages/AdminCustomers";
+import AdminCategories from "./pages/AdminCategories";
 
 function AdminProtected({ children }) {
   let isAuthed = false;
@@ -55,7 +58,7 @@ function AppContent() {
   })();
 
   const showUserNavbar = !isAuthPage && !isAdminRoute;
-  const showAdminNavbar = isAdminRoute && !isAdminLoginPage && isAdminAuthed;
+  const showAdminSidebar = isAdminRoute && !isAdminLoginPage && isAdminAuthed;
 
   const mainPaddingClass = isAdminRoute
     ? isAdminLoginPage
@@ -73,7 +76,7 @@ function AppContent() {
   return (
     <div className="App min-h-screen bg-gray-50">
       {showUserNavbar && <Navbar />}
-      {showAdminNavbar && <AdminNavbar />}
+      {showAdminSidebar && <AdminSidebar />}
 
       <main className={mainPaddingClass}>
         <React.Suspense fallback={<div className="p-6 text-gray-600">Loading...</div>}>
@@ -87,13 +90,15 @@ function AppContent() {
             <Route path="/products" element={<ProductListing />} />
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/cart" element={<Cart />} />
+            <Route path="/checkout" element={<Checkout />} />
+            <Route path="/payment-result" element={<PaymentResult />} />
             <Route path="/wishlist" element={<Wishlist />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/customize" element={<Customize />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
+            <Route path="/login" element={<Auth />} />
+            <Route path="/signup" element={<Auth />} />
 
             {/* Admin auth */}
             <Route path="/admin/login" element={<AdminLogin />} />
@@ -104,7 +109,15 @@ function AppContent() {
               path="/admin/dashboard"
               element={
                 <AdminProtected>
-                  <Admin />
+                  <AdminDashboard />
+                </AdminProtected>
+              }
+            />
+            <Route
+              path="/admin/products"
+              element={
+                <AdminProtected>
+                  <AdminProducts />
                 </AdminProtected>
               }
             />
@@ -113,6 +126,14 @@ function AppContent() {
               element={
                 <AdminProtected>
                   <AdminOrders />
+                </AdminProtected>
+              }
+            />
+            <Route
+              path="/admin/categories"
+              element={
+                <AdminProtected>
+                  <AdminCategories />
                 </AdminProtected>
               }
             />

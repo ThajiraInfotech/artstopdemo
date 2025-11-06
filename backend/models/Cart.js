@@ -6,6 +6,10 @@ const cartItemSchema = new mongoose.Schema({
     ref: 'Product',
     required: true
   },
+  name: {
+    type: String,
+    trim: true
+  },
   quantity: {
     type: Number,
     required: true,
@@ -31,6 +35,10 @@ const cartItemSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 0
+  },
+  image: {
+    type: String,
+    trim: true
   }
 }, { _id: true });
 
@@ -72,20 +80,20 @@ const cartSchema = new mongoose.Schema({
 
 // Calculate totals before saving
 cartSchema.pre('save', function(next) {
-  // Calculate subtotal
-  this.subtotal = this.items.reduce((sum, item) => sum + item.total, 0);
-  
-  // Calculate tax (assuming 10% tax rate)
-  this.tax = Math.round(this.subtotal * 0.1);
-  
-  // Calculate shipping (free shipping over ₹5000)
-  this.shipping = this.subtotal >= 5000 ? 0 : 200;
-  
-  // Calculate total
-  this.total = this.subtotal + this.tax + this.shipping;
-  
-  this.lastUpdated = new Date();
-  next();
+// Calculate subtotal
+this.subtotal = this.items.reduce((sum, item) => sum + item.total, 0);
+
+// Calculate tax (18% GST)
+this.tax = Math.round(this.subtotal * 0.18);
+
+// Calculate shipping (free shipping over ₹5000)
+this.shipping = this.subtotal >= 5000 ? 0 : 200;
+
+// Calculate total
+this.total = this.subtotal + this.tax + this.shipping;
+
+this.lastUpdated = new Date();
+next();
 });
 
 module.exports = mongoose.model('Cart', cartSchema);

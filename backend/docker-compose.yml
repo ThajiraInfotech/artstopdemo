@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8001:8001"
+    environment:
+      - NODE_ENV=development
+      - PORT=8001
+      - MONGO_URL=mongodb://mongodb:27017/artstop
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - JWT_REFRESH_SECRET=your-super-secret-refresh-key-change-in-production
+      - JWT_EXPIRE=7d
+      - JWT_REFRESH_EXPIRE=30d
+      - FRONTEND_URL=http://localhost:3000
+      - ADMIN_EMAIL=admin@artstop.com
+      - ADMIN_PASSWORD=admin123
+    depends_on:
+      - mongodb
+    volumes:
+      - ./uploads:/app/uploads
+    networks:
+      - artstop-network
+
+  mongodb:
+    image: mongo:7.0
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=artstop
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - artstop-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  artstop-network:
+    driver: bridge

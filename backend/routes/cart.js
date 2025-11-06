@@ -12,29 +12,31 @@ const router = express.Router();
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    let cart = await Cart.findOne({ user: req.user.id })
-      .populate('items.product', 'name images price inStock');
+    // Handle both ObjectId and string user IDs (for admin/demo users)
+    const userId = req.user._id || req.user.userId;
+    let cart = await Cart.findOne({ user: userId })
+      .populate('items.product', 'name media price inStock');
 
     if (!cart) {
       cart = await Cart.create({
-        user: req.user.id,
+        user: userId,
         items: []
       });
     }
 
-    // Filter out items with deleted/inactive products
-    cart.items = cart.items.filter(item => 
-      item.product && item.product.inStock
-    );
+   // Filter out items with deleted/inactive products
+   cart.items = cart.items.filter(item =>
+     item.product && item.product.inStock
+   );
 
-    // Recalculate totals
-    await cart.save();
+   // Recalculate totals
+   await cart.save();
 
-    sendResponse(res, 200, { cart }, 'Cart retrieved successfully');
-  } catch (error) {
-    console.error('Get cart error:', error);
-    sendError(res, 500, 'Error retrieving cart');
-  }
+   sendResponse(res, 200, { cart }, 'Cart retrieved successfully');
+ } catch (error) {
+   console.error('Get cart error:', error);
+   sendError(res, 500, 'Error retrieving cart');
+ }
 });
 
 // @desc    Add item to cart
@@ -42,10 +44,14 @@ router.get('/', protect, async (req, res) => {
 // @access  Private
 router.post('/', protect, validateCartItem, async (req, res) => {
   try {
+    console.log('POST /api/cart - Request body:', req.body);
+    console.log('POST /api/cart - User:', req.user ? { _id: req.user._id, userId: req.user.userId, email: req.user.email } : 'No user');
     const { productId, quantity = 1, variant, color } = req.body;
 
     // Check if product exists and is available
+    console.log('POST /api/cart - Finding product with ID:', productId);
     const product = await Product.findById(productId);
+    console.log('POST /api/cart - Product found:', product ? { _id: product._id, name: product.name, isActive: product.isActive, inStock: product.inStock } : 'Product not found');
     if (!product || !product.isActive || !product.inStock) {
       return sendError(res, 404, 'Product not available');
     }
@@ -74,10 +80,13 @@ router.post('/', protect, validateCartItem, async (req, res) => {
     }
 
     // Get or create cart
-    let cart = await Cart.findOne({ user: req.user.id });
+    const userId = req.user._id || req.user.userId;
+    console.log('POST /api/cart - User ID for cart:', userId);
+    let cart = await Cart.findOne({ user: userId });
+    console.log('POST /api/cart - Existing cart found:', cart ? cart._id : 'No existing cart, creating new one');
     if (!cart) {
       cart = new Cart({
-        user: req.user.id,
+        user: userId,
         items: []
       });
     }
@@ -98,19 +107,25 @@ router.post('/', protect, validateCartItem, async (req, res) => {
       // Add new item
       cart.items.push({
         product: productId,
+        name: product.name,
         quantity,
         variant: variantInfo,
         color,
         price,
-        total: quantity * price
+        total: quantity * price,
+        image: product.media && product.media.length > 0 ? (typeof product.media[0] === 'string' ? product.media[0] : product.media[0].url) : ''
       });
     }
 
+    console.log('POST /api/cart - Saving cart with items:', cart.items.length);
     await cart.save();
+    console.log('POST /api/cart - Cart saved successfully, cart ID:', cart._id);
 
     // Populate and return updated cart
+    console.log('POST /api/cart - Populating cart data');
     cart = await Cart.findById(cart._id)
-      .populate('items.product', 'name images price inStock');
+      .populate('items.product', 'name media price inStock');
+    console.log('POST /api/cart - Cart populated successfully');
 
     sendResponse(res, 200, { cart }, 'Item added to cart successfully');
   } catch (error) {
@@ -131,7 +146,8 @@ router.put('/:itemId', protect, async (req, res) => {
       return sendError(res, 400, 'Quantity must be at least 1');
     }
 
-    const cart = await Cart.findOne({ user: req.user.id });
+    const userId = req.user._id || req.user.userId;
+    const cart = await Cart.findOne({ user: userId });
     if (!cart) {
       return sendError(res, 404, 'Cart not found');
     }
@@ -149,7 +165,7 @@ router.put('/:itemId', protect, async (req, res) => {
 
     // Populate and return updated cart
     const updatedCart = await Cart.findById(cart._id)
-      .populate('items.product', 'name images price inStock');
+      .populate('items.product', 'name media price inStock');
 
     sendResponse(res, 200, { cart: updatedCart }, 'Cart item updated successfully');
   } catch (error) {
@@ -165,7 +181,8 @@ router.delete('/:itemId', protect, async (req, res) => {
   try {
     const { itemId } = req.params;
 
-    const cart = await Cart.findOne({ user: req.user.id });
+    const userId = req.user._id || req.user.userId;
+    const cart = await Cart.findOne({ user: userId });
     if (!cart) {
       return sendError(res, 404, 'Cart not found');
     }
@@ -177,7 +194,7 @@ router.delete('/:itemId', protect, async (req, res) => {
 
     // Populate and return updated cart
     const updatedCart = await Cart.findById(cart._id)
-      .populate('items.product', 'name images price inStock');
+      .populate('items.product', 'name media price inStock');
 
     sendResponse(res, 200, { cart: updatedCart }, 'Item removed from cart successfully');
   } catch (error) {
@@ -191,8 +208,9 @@ router.delete('/:itemId', protect, async (req, res) => {
 // @access  Private
 router.delete('/', protect, async (req, res) => {
   try {
-    let cart = await Cart.findOne({ user: req.user.id });
-    
+    const userId = req.user._id || req.user.userId;
+    let cart = await Cart.findOne({ user: userId });
+
     if (cart) {
       cart.items = [];
       await cart.save();
@@ -210,8 +228,13 @@ router.delete('/', protect, async (req, res) => {
 // @access  Private
 router.get('/count', protect, async (req, res) => {
   try {
-    const cart = await Cart.findOne({ user: req.user.id });
+    console.log('GET /api/cart/count - User:', req.user ? { _id: req.user._id, userId: req.user.userId } : 'No user');
+    const userId = req.user._id || req.user.userId;
+    console.log('GET /api/cart/count - Finding cart for user ID:', userId);
+    const cart = await Cart.findOne({ user: userId });
+    console.log('GET /api/cart/count - Cart found:', cart ? { _id: cart._id, itemsCount: cart.items.length } : 'No cart');
     const count = cart ? cart.items.reduce((total, item) => total + item.quantity, 0) : 0;
+    console.log('GET /api/cart/count - Total count:', count);
 
     sendResponse(res, 200, { count }, 'Cart count retrieved successfully');
   } catch (error) {

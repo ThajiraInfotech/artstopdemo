@@ -1,39 +1,113 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Trash2, Plus, Minus, ArrowRight } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
-import { getCartItems, saveCartItems } from '../data/mock';
+import api from '../lib/api';
 import { useToast } from '../hooks/use-toast';
 
 const Cart = () => {
+  const navigate = useNavigate();
   const [cartItems, setCartItems] = useState([]);
   const [promoCode, setPromoCode] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
-    setCartItems(getCartItems());
+    fetchCartItems();
+
+    // Listen for cart updates
+    const handleCartUpdate = () => {
+      fetchCartItems();
+    };
+
+    window.addEventListener('cartUpdated', handleCartUpdate);
+
+    return () => {
+      window.removeEventListener('cartUpdated', handleCartUpdate);
+    };
   }, []);
 
-  const updateQuantity = (index, newQuantity) => {
-    if (newQuantity < 1) return;
-    
-    const updatedItems = [...cartItems];
-    updatedItems[index].quantity = newQuantity;
-    setCartItems(updatedItems);
-    saveCartItems(updatedItems);
+  const fetchCartItems = async () => {
+    // Check if user is authenticated
+    const token = localStorage.getItem('artstop_token') || localStorage.getItem('token');
+    if (!token) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to view your cart.",
+        variant: "destructive",
+      });
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const response = await api.get('/api/cart');
+      if (response.success) {
+        setCartItems(response.data.cart.items || []);
+      }
+    } catch (error) {
+      console.error('Error fetching cart:', error);
+      // Only show error toast if it's not an authentication error
+      if (error.status !== 401) {
+        toast({
+          title: "Error",
+          description: "Failed to load cart items",
+          variant: "destructive",
+        });
+      }
+      setCartItems([]);
+    }
   };
 
-  const removeItem = (index) => {
-    const updatedItems = cartItems.filter((_, i) => i !== index);
-    setCartItems(updatedItems);
-    saveCartItems(updatedItems);
-    
-    toast({
-      title: "Item Removed",
-      description: "Item has been removed from your cart.",
-    });
+  const updateQuantity = async (index, newQuantity) => {
+    if (newQuantity < 1) return;
+
+    try {
+      const item = cartItems[index];
+      const response = await api.put(`/api/cart/${item._id}`, {
+        quantity: newQuantity
+      });
+
+      if (response.success) {
+        // Refresh cart items from backend
+        await fetchCartItems();
+        toast({
+          title: "Cart Updated",
+          description: "Item quantity has been updated.",
+        });
+      }
+    } catch (error) {
+      console.error('Error updating cart:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update cart item",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const removeItem = async (index) => {
+    try {
+      const item = cartItems[index];
+      const response = await api.delete(`/api/cart/${item._id}`);
+
+      if (response.success) {
+        // Refresh cart items from backend
+        await fetchCartItems();
+        toast({
+          title: "Item Removed",
+          description: "Item has been removed from your cart.",
+        });
+      }
+    } catch (error) {
+      console.error('Error removing cart item:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove item from cart",
+        variant: "destructive",
+      });
+    }
   };
 
   const applyPromoCode = () => {
@@ -89,7 +163,7 @@ const Cart = () => {
           {/* Cart Items */}
           <div className="lg:col-span-2 space-y-6">
             {cartItems.map((item, index) => (
-              <Card key={`${item.id}-${item.variant}-${item.color}`} className="bg-white shadow-lg">
+              <Card key={item._id || `${item.product?._id}-${item.variant?.value || 'no-variant'}-${item.color || 'no-color'}`} className="bg-white shadow-lg">
                 <CardContent className="p-6">
                   <div className="flex items-center space-x-6">
                     {/* Product Image */}
@@ -103,17 +177,17 @@ const Cart = () => {
 
                     {/* Product Details */}
                     <div className="flex-1 min-w-0">
-                      <Link to={`/product/${item.id}`}>
+                      <Link to={`/product/${item.product?._id || item.id}`}>
                         <h3 className="text-lg font-semibold text-gray-900 hover:text-blue-600 transition-colors line-clamp-2">
                           {item.name}
                         </h3>
                       </Link>
                       
                       <div className="mt-2 space-y-1">
-                        {(item.variantName || item.variant) && (
+                        {item.variant && (
                           <p className="text-sm text-gray-600">
-                            Size: {item.variantName || item.variant}
-                            {item.variantDimensions ? ` — ${item.variantDimensions}` : ''}
+                            Size: {item.variant.name || item.variant.value}
+                            {item.variant.dimensions ? ` — ${item.variant.dimensions}` : ''}
                           </p>
                         )}
                         {item.color && (
@@ -230,8 +304,11 @@ const Cart = () => {
                 </div>
 
                 {/* Checkout Button */}
-                <Button className="w-full bg-black text-white hover:bg-gray-800 py-3 text-lg font-medium rounded-full mb-4">
-                  <span>Go to Checkout</span>
+                <Button
+                  onClick={() => navigate('/checkout')}
+                  className="w-full bg-black text-white hover:bg-gray-800 py-3 text-lg font-medium rounded-full mb-4"
+                >
+                  <span>Proceed to Payment</span>
                   <ArrowRight className="h-5 w-5 ml-2" />
                 </Button>
 

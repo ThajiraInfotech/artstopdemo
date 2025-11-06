@@ -16,7 +16,7 @@ router.get('/', protect, async (req, res) => {
     const { page = 1, limit = 10, status } = req.query;
 
     // Build filter
-    const filter = { user: req.user.id };
+    const filter = { user: req.user._id };
     if (status) filter.status = status;
 
     // Pagination
@@ -29,7 +29,7 @@ router.get('/', protect, async (req, res) => {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum)
-      .populate('items.product', 'name images');
+      .populate('items.product', 'name media');
 
     const totalOrders = await Order.countDocuments(filter);
 
@@ -55,7 +55,7 @@ router.get('/:id', protect, async (req, res) => {
   try {
     const order = await Order.findOne({
       _id: req.params.id,
-      user: req.user.id
+      user: req.user._id
     }).populate('items.product', 'name images');
 
     if (!order) {
@@ -77,7 +77,7 @@ router.post('/', protect, validateOrder, async (req, res) => {
     const { shippingAddress, paymentInfo } = req.body;
 
     // Get user cart
-    const cart = await Cart.findOne({ user: req.user.id })
+    const cart = await Cart.findOne({ user: req.user._id })
       .populate('items.product', 'name images price inStock');
 
     if (!cart || cart.items.length === 0) {
@@ -105,7 +105,7 @@ router.post('/', protect, validateOrder, async (req, res) => {
 
     // Create order
     const order = await Order.create({
-      user: req.user.id,
+      user: req.user._id,
       items: orderItems,
       shippingAddress,
       paymentInfo: {
@@ -151,7 +151,7 @@ router.put('/:id/cancel', protect, async (req, res) => {
   try {
     const order = await Order.findOne({
       _id: req.params.id,
-      user: req.user.id
+      user: req.user._id
     });
 
     if (!order) {
@@ -180,7 +180,7 @@ router.get('/:id/tracking', protect, async (req, res) => {
   try {
     const order = await Order.findOne({
       _id: req.params.id,
-      user: req.user.id
+      user: req.user._id
     }).select('orderNumber status trackingNumber estimatedDelivery deliveredAt createdAt');
 
     if (!order) {

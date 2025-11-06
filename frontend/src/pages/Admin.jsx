@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { X } from "lucide-react";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { useToast } from "../hooks/use-toast";
+import { productsApi, categoriesApi, uploadApi, ApiError } from "../lib/api";
 import {
   categories as seedCategories,
   products as seedProducts,
@@ -29,10 +31,12 @@ const nextId = (items) => (items.length ? Math.max(...items.map((i) => i.id || 0
 
 const Admin = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
 
   // Local catalog (persisted in localStorage via mock helpers)
   const [categoriesData, setCategoriesData] = useState(() => getCategories?.() ?? seedCategories);
-  const [productsData, setProductsData] = useState(() => getProducts?.() ?? seedProducts);
+  const [productsData, setProductsData] = useState([]);
   const [orders, setOrders] = useState(() => {
     try {
       return getOrders() || [];
@@ -40,6 +44,51 @@ const Admin = () => {
       return [];
     }
   });
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(true);
+
+  // Check authentication
+  useEffect(() => {
+    const token = localStorage.getItem('artstop_token');
+    if (!token) {
+      navigate('/admin/login');
+      return;
+    }
+  }, [navigate]);
+
+  // Fetch categories from API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await categoriesApi.getAll();
+        setCategoriesData(response.data?.categories || seedCategories);
+      } catch (error) {
+        console.warn('Failed to fetch categories from API, using mock data:', error);
+        setCategoriesData(seedCategories);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
+
+  // Fetch products from API
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await productsApi.getAllAdmin({ limit: 100 }); // Get all products for admin
+        setProductsData(response.data.products || []);
+      } catch (error) {
+        console.warn('Failed to fetch products from API:', error);
+        setProductsData([]);
+      } finally {
+        setProductsLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
 
   // Refresh from localStorage on catalogUpdated events
   useEffect(() => {
@@ -73,7 +122,8 @@ const Admin = () => {
     existingCollection: "",
     newCollectionName: "",
     price: "",
-    imageUrl: "",
+    mediaUrls: [],
+    mediaFiles: [], // Array of { file, color }
     inStock: true,
     featured: false,
     hasVariants: false,
@@ -85,7 +135,8 @@ const Admin = () => {
   });
 
   // Optional file upload -> Data URL preview
-  const [imagePreview, setImagePreview] = useState("");
+  const [mediaPreviews, setMediaPreviews] = useState([]);
+  const [selectedFiles, setSelectedFiles] = useState([]);
 
   const availableCollections = useMemo(() => {
     const cat = categoriesData.find((c) => c.slug === form.category);
@@ -100,7 +151,9 @@ const Admin = () => {
       existingCollection: "",
       newCollectionName: "",
       price: "",
-      imageUrl: "",
+      description: "",
+      mediaUrls: [], // Array of { url: string, color: string }
+      mediaFiles: [], // Array of { file, color: string }
       inStock: true,
       featured: false,
       hasVariants: false,
@@ -110,26 +163,34 @@ const Admin = () => {
       colors: [],
       colorInput: "",
     });
-    setImagePreview("");
+    setMediaPreviews([]);
+    setSelectedFiles([]);
   };
 
-  const onPickFile = async (file) => {
-    if (!file) {
-      setImagePreview("");
+  const onPickFiles = async (files) => {
+    if (!files || files.length === 0) {
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setImagePreview(String(e.target?.result || ""));
-    };
-    reader.readAsDataURL(file);
+    const newFiles = Array.from(files);
+    const previews = await Promise.all(newFiles.map(file => {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(String(e.target?.result || ""));
+        reader.readAsDataURL(file);
+      });
+    }));
+    setMediaPreviews([...mediaPreviews, ...previews]);
+    setSelectedFiles([...selectedFiles, ...newFiles]);
+    // Initialize mediaFiles with empty color values (for general uploads)
+    const mediaFiles = newFiles.map(file => ({ file, color: "" }));
+    setForm({ ...form, mediaFiles: [...form.mediaFiles, ...mediaFiles] });
   };
 
   const effectiveCollectionName = useMemo(() => {
     return form.mode === "new" ? form.newCollectionName.trim() : form.existingCollection;
   }, [form.mode, form.newCollectionName, form.existingCollection]);
 
-  const handleCreateProduct = () => {
+  const handleCreateProduct = async () => {
     const name = form.name.trim();
     if (!name) {
       toast({ title: "Product name required", description: "Please provide a product name." });
@@ -146,44 +207,48 @@ const Admin = () => {
         title: "Collection required",
         description: form.mode === "new" ? "Enter a new collection name." : "Select an existing collection.",
       });
+      
       return;
+    
     }
 
     const hasVariants = !!form.hasVariants;
-  
+
     // Build variants if enabled
     let variants = [];
     if (hasVariants) {
       variants = (form.variants || [])
-        .map((v, idx) => ({
-          name: String(v.name || "").trim() || `Variant ${idx + 1}`,
-          value: slugify(`${v.name || "variant"}-${v.dimensions || idx + 1}`),
-          price: numberOr(v.price, NaN),
-          dimensions: String(v.dimensions || "").trim(),
-        }))
-        .filter(v => Number.isFinite(v.price) && v.price >= 0);
-  
+        .map((v, idx) => {
+          const name = String(v.name || "").trim() || `Variant ${idx + 1}`;
+          const value = slugify(`${v.name || "variant"}-${v.dimensions || idx + 1}`);
+          const price = numberOr(v.price, NaN);
+          const dimensions = String(v.dimensions || "").trim();
+
+          return {
+            name,
+            value,
+            price,
+            dimensions,
+            label: `${name}${dimensions ? `: ${dimensions}` : ''} - ${price}`
+          };
+        })
+        .filter(v => v.name && v.value && Number.isFinite(v.price) && v.price >= 0);
+
       if (variants.length === 0) {
         toast({
           title: "Add at least one valid variant",
-          description: "Enter size/dimensions and a valid price for variants."
+          description: "Enter name, dimensions and a valid price for variants."
         });
         return;
       }
-  
-      // Add preformatted label for storefront UI
-      variants = variants.map(v => ({
-        ...v,
-        label: `${v.name}${v.dimensions ? `: ${v.dimensions}` : ''} - ${v.price}`
-      }));
     }
-  
-    // Determine base price: use explicit price if valid; otherwise first variant price
+
+    // Determine base price: use explicit price if valid; otherwise smallest variant price
     const parsedBasePrice = numberOr(form.price, NaN);
     const basePrice = Number.isFinite(parsedBasePrice) && parsedBasePrice >= 0
       ? parsedBasePrice
-      : (hasVariants ? variants[0].price : NaN);
-  
+      : (hasVariants ? Math.min(...variants.map(v => v.price)) : NaN);
+
     if (!Number.isFinite(basePrice)) {
       toast({
         title: "Invalid price",
@@ -192,54 +257,135 @@ const Admin = () => {
       return;
     }
 
-    const primaryImage =
-      imagePreview?.trim() ||
-      form.imageUrl.trim() ||
-      `https://picsum.photos/seed/${encodeURIComponent(slugify(name))}/800/600`;
+    // Handle media upload safely
+    let media = [];
 
-    // Build product
-    const newProduct = {
-      id: nextId(productsData),
-      name,
-      category: form.category,
-      collection: collectionName,
-      price: basePrice,
-      images: [primaryImage],
-      variants: hasVariants ? variants : [],
-      colors: (form.colors || []).map(c => String(c).trim()).filter(Boolean),
-      description: "",
-      features: [],
-      inStock: !!form.inStock,
-      featured: !!form.featured,
-      rating: 4.5,
-      reviewCount: 0,
-    };
-
-    const nextProducts = [...productsData, newProduct];
-    saveProducts(nextProducts);
-    setProductsData(nextProducts);
-
-    // If new collection, add it to the selected category
-    if (form.mode === "new") {
-      const cat = categoriesData.find((c) => c.slug === form.category);
-      if (cat && !cat.collections.includes(collectionName)) {
-        const updatedCategories = categoriesData.map((c) => {
-          if (c.slug !== cat.slug) return c;
-          const nextCollections = [...(c.collections || []), collectionName];
-          const nextImages = {
-            ...(c.collectionImages || {}),
-            // Use the product's image as the collection image ("image inside that's the product")
-            [collectionName]: primaryImage,
+    // Add URL-based media
+    if (form.mediaUrls && form.mediaUrls.length > 0) {
+      const urlMedia = form.mediaUrls.map(mediaItem => {
+        const trimmed = (mediaItem.url || "").trim();
+        if (trimmed && !trimmed.includes('picsum.photos')) {
+          // Determine type based on URL or assume image
+          const type = trimmed.includes('.mp4') || trimmed.includes('.mov') || trimmed.includes('.avi') || trimmed.includes('.webm') ? 'video' : 'image';
+          return {
+            url: trimmed,
+            type,
+            color: mediaItem.color || undefined
           };
-          return { ...c, collections: nextCollections, collectionImages: nextImages };
-        });
-        saveCategories(updatedCategories);
-        setCategoriesData(updatedCategories);
+        }
+        return null;
+      }).filter(Boolean);
+      media = [...media, ...urlMedia];
+    }
+
+    // Upload files
+    if (selectedFiles && selectedFiles.length > 0) {
+      try {
+        const uploadResponse = await uploadApi.uploadImages(selectedFiles);
+        const uploadedMedia = uploadResponse.data.images.map((img, idx) => ({
+          url: img.imageUrl,
+          type: img.format === 'mp4' || img.format === 'mov' || img.format === 'avi' || img.format === 'webm' ? 'video' : 'image',
+          color: form.mediaFiles[idx]?.color || undefined
+        }));
+        media = [...media, ...uploadedMedia];
+      } catch (err) {
+        console.warn("Upload failed:", err);
       }
     }
 
-    toast({ title: "Product added", description: `${newProduct.name} has been created.` });
-    resetForm();
+    // Require at least one media
+    if (media.length === 0) {
+      toast({ title: "Media required", description: "Please upload at least one image or video, or add a valid URL." });
+      setLoading(false);
+      return;
+    }
+
+    // Build product data for API
+    const productData = {
+      name: String(name),
+      category: String(form.category),
+      collection: String(collectionName),
+      price: Number(basePrice),
+      media,
+      variants: hasVariants ? variants.map(v => ({
+        name: String(v.name),
+        value: String(v.value),
+        price: Number(v.price),
+        dimensions: String(v.dimensions || ''),
+        label: String(v.label || '')
+      })) : [],
+      colors: (form.colors || []).map(c => String(c).trim()).filter(Boolean),
+      description: form.description.trim(),
+      features: [],
+      inStock: Boolean(form.inStock),
+      featured: Boolean(form.featured),
+    };
+ console.log("Payload sending:", productData);
+    setLoading(true);
+    try {
+      const response = await productsApi.create(productData);
+
+      console.log("Create product API response:", response);
+
+      // Safe extraction of product from different response formats
+      const product = response.data || response.product || response;
+
+      const newProduct = {
+        id: product._id || product.id,
+        ...product,
+        rating: 4.5,
+        reviewCount: 0,
+      };
+
+      // ✅ Refetch products from API to ensure consistency
+      try {
+        const response = await productsApi.getAllAdmin({ limit: 100 });
+        setProductsData(response.data.products || []);
+      } catch (fetchError) {
+        console.warn('Failed to refetch products after creation:', fetchError);
+        // Fallback: add to local state
+        setProductsData((prev) => [...prev, newProduct]);
+      }
+
+      // If new collection, add it to the selected category
+      if (form.mode === "new") {
+        const cat = categoriesData.find((c) => c.slug === form.category);
+        if (cat && !cat.collections.includes(collectionName)) {
+          const updatedCategories = categoriesData.map((c) => {
+            if (c.slug !== cat.slug) return c;
+            const nextCollections = [...(c.collections || []), collectionName];
+            const nextImages = {
+              ...(c.collectionImages || {}),
+              // Use the product's first image as the collection image
+              [collectionName]: media.find(m => m.type === 'image')?.url || media[0]?.url,
+            };
+            return { ...c, collections: nextCollections, collectionImages: nextImages };
+          });
+          saveCategories(updatedCategories);
+          setCategoriesData(updatedCategories);
+        }
+      }
+
+      // ✅ Success toast
+      toast({
+        title: "Product added",
+        description: `${product.name} has been created successfully.`,
+      });
+
+      // ✅ Reset form and close modal after add
+      resetForm();
+      // setShowModal(false); // Uncomment when modal is implemented
+
+    } catch (error) {
+      console.error('Create product error:', error);
+      toast({
+        title: "Error creating product",
+        description: error.message || "Failed to create product. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -271,14 +417,14 @@ const Admin = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <Card className="bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
             <CardContent className="p-5">
-              <div className="text-sm text-gray-500">Categories</div>
-              <div className="text-2xl font-semibold text-gray-900">{stats.totalCategories}</div>
+              <div className="text-sm text-gray-500">Collections</div>
+              <div className="text-2xl font-semibold text-gray-900">{stats.totalCollections}</div>
             </CardContent>
           </Card>
           <Card className="bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
             <CardContent className="p-5">
-              <div className="text-sm text-gray-500">Collections</div>
-              <div className="text-2xl font-semibold text-gray-900">{stats.totalCollections}</div>
+              <div className="text-sm text-gray-500">Categories</div>
+              <div className="text-2xl font-semibold text-gray-900">{stats.totalCategories}</div>
             </CardContent>
           </Card>
           <Card className="bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
@@ -312,6 +458,18 @@ const Admin = () => {
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
                       className="w-full border-gray-300 rounded-md"
                       placeholder="e.g. Ayatul Kursi Wall Art"
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm text-gray-700 mb-1">Product Description</label>
+                    <textarea
+                      value={form.description}
+                      onChange={(e) => setForm({ ...form, description: e.target.value })}
+                      className="w-full border-gray-300 rounded-md resize-vertical"
+                      placeholder="Describe your product in detail..."
+                      rows={3}
                     />
                   </div>
 
@@ -567,55 +725,344 @@ const Admin = () => {
                     </label>
                   </div>
 
-                  {/* Image */}
-                  <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm text-gray-700 mb-1">Product Image URL (optional)</label>
-                      <input
-                        value={form.imageUrl}
-                        onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                        className="w-full border-gray-300 rounded-md"
-                        placeholder="https://..."
-                      />
-                      <div className="mt-3">
-                        <label className="block text-sm text-gray-700 mb-1">Or Upload Image</label>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => onPickFile(e.target.files?.[0])}
-                          className="w-full"
-                        />
+                  {/* Media */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm text-gray-700 mb-2">Product Media (Images/Videos)</label>
+
+                    {/* Color-centric media management */}
+                    {form.colors.length > 0 ? (
+                      <div className="space-y-6">
+                        {form.colors.map((color) => {
+                          // Get media for this color
+                          const colorUrls = form.mediaUrls.filter(item => item.color === color);
+                          const colorFiles = form.mediaFiles.filter(item => item.color === color);
+
+                          return (
+                            <div key={color} className="border border-gray-200 rounded-lg p-4">
+                              <div className="flex items-center gap-3 mb-3">
+                                <div
+                                  className="w-6 h-6 rounded-full border-2 border-gray-300"
+                                  style={{
+                                    backgroundColor: {
+                                      'Red': '#dc2626',
+                                      'Blue': '#2563eb',
+                                      'Green': '#16a34a',
+                                      'Yellow': '#eab308',
+                                      'Purple': '#9333ea',
+                                      'Pink': '#ec4899',
+                                      'Black': '#000000',
+                                      'White': '#ffffff',
+                                      'Gray': '#6b7280',
+                                      'Brown': '#92400e',
+                                      'Orange': '#ea580c',
+                                      'Navy': '#1e40af',
+                                      'Maroon': '#7f1d1d',
+                                      'Gold': '#d4af37',
+                                      'Silver': '#9ca3af'
+                                    }[color] || '#6b7280'
+                                  }}
+                                ></div>
+                                <h4 className="font-medium text-gray-900">{color} Media</h4>
+                                <span className="text-sm text-gray-500">
+                                  ({colorUrls.length + colorFiles.length} items)
+                                </span>
+                              </div>
+
+                              {/* URL inputs for this color */}
+                              <div className="space-y-2 mb-4">
+                                <label className="block text-xs text-gray-600">Media URLs</label>
+                                {colorUrls.map((mediaItem, idx) => {
+                                  const globalIdx = form.mediaUrls.findIndex(item => item === mediaItem);
+                                  return (
+                                    <div key={globalIdx} className="flex gap-2">
+                                      <input
+                                        value={mediaItem.url || ""}
+                                        onChange={(e) => {
+                                          const next = [...form.mediaUrls];
+                                          next[globalIdx] = { ...next[globalIdx], url: e.target.value };
+                                          setForm({ ...form, mediaUrls: next });
+                                        }}
+                                        className="flex-1 border-gray-300 rounded-md text-sm"
+                                        placeholder="https://..."
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const next = [...form.mediaUrls];
+                                          next.splice(globalIdx, 1);
+                                          setForm({ ...form, mediaUrls: next });
+                                        }}
+                                        className="text-red-600 text-sm hover:underline px-2"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                                  onClick={() => setForm({
+                                    ...form,
+                                    mediaUrls: [...form.mediaUrls, { url: "", color }]
+                                  })}
+                                >
+                                  + Add URL
+                                </Button>
+                              </div>
+
+                              {/* File uploads for this color */}
+                              <div className="mb-4">
+                                <label className="block text-xs text-gray-600 mb-1">Upload Files</label>
+                                <input
+                                  type="file"
+                                  accept="image/*,video/*"
+                                  multiple
+                                  onChange={(e) => {
+                                    const files = Array.from(e.target.files);
+                                    const newMediaFiles = files.map(file => ({ file, color }));
+                                    setForm({
+                                      ...form,
+                                      mediaFiles: [...form.mediaFiles, ...newMediaFiles]
+                                    });
+                                    // Create previews
+                                    const previews = files.map(file => URL.createObjectURL(file));
+                                    setMediaPreviews([...mediaPreviews, ...previews]);
+                                    setSelectedFiles([...selectedFiles, ...files]);
+                                  }}
+                                  className="w-full text-sm"
+                                />
+                              </div>
+
+                              {/* Previews for this color */}
+                              {(colorUrls.length > 0 || colorFiles.length > 0) && (
+                                <div>
+                                  <label className="block text-xs text-gray-600 mb-2">Previews</label>
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    {colorUrls.map((mediaItem, idx) => (
+                                      <div key={`url-${idx}`} className="w-full h-16 bg-gray-100 rounded overflow-hidden">
+                                        {mediaItem.url.includes('.mp4') || mediaItem.url.includes('.mov') || mediaItem.url.includes('.avi') || mediaItem.url.includes('.webm') ? (
+                                          <video
+                                            src={mediaItem.url}
+                                            className="w-full h-full object-cover"
+                                            controls={false}
+                                            muted
+                                          />
+                                        ) : (
+                                          <img
+                                            src={mediaItem.url}
+                                            alt={`${color} media ${idx + 1}`}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                              e.currentTarget.src = "https://picsum.photos/seed/placeholder/80/80";
+                                            }}
+                                          />
+                                        )}
+                                      </div>
+                                    ))}
+                                    {colorFiles.map((mediaItem, idx) => {
+                                      const globalIdx = form.mediaFiles.findIndex(item => item === mediaItem);
+                                      return (
+                                        <div key={`file-${idx}`} className="w-full h-16 bg-gray-100 rounded overflow-hidden relative">
+                                          {mediaItem.file.type.startsWith('video/') ? (
+                                            <video
+                                              src={mediaPreviews[globalIdx]}
+                                              className="w-full h-full object-cover"
+                                              controls={false}
+                                              muted
+                                            />
+                                          ) : (
+                                            <img
+                                              src={mediaPreviews[globalIdx]}
+                                              alt={`${color} upload ${idx + 1}`}
+                                              className="w-full h-full object-cover"
+                                            />
+                                          )}
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const nextFiles = [...form.mediaFiles];
+                                              const nextPreviews = [...mediaPreviews];
+                                              const nextSelectedFiles = [...selectedFiles];
+
+                                              nextFiles.splice(globalIdx, 1);
+                                              nextPreviews.splice(globalIdx, 1);
+                                              nextSelectedFiles.splice(globalIdx, 1);
+
+                                              setForm({ ...form, mediaFiles: nextFiles });
+                                              setMediaPreviews(nextPreviews);
+                                              setSelectedFiles(nextSelectedFiles);
+                                            }}
+                                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                                          >
+                                            <X className="h-3 w-3" />
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {/* General media (no specific color) */}
+                        <div className="border border-gray-200 rounded-lg p-4">
+                          <h4 className="font-medium text-gray-900 mb-3">General Media (All Colors)</h4>
+
+                          {/* General URLs */}
+                          <div className="space-y-2 mb-4">
+                            <label className="block text-xs text-gray-600">Media URLs</label>
+                            {form.mediaUrls.filter(item => !item.color).map((mediaItem, idx) => {
+                              const globalIdx = form.mediaUrls.findIndex(item => item === mediaItem);
+                              return (
+                                <div key={globalIdx} className="flex gap-2">
+                                  <input
+                                    value={mediaItem.url || ""}
+                                    onChange={(e) => {
+                                      const next = [...form.mediaUrls];
+                                      next[globalIdx] = { ...next[idx], url: e.target.value };
+                                      setForm({ ...form, mediaUrls: next });
+                                    }}
+                                    className="flex-1 border-gray-300 rounded-md text-sm"
+                                    placeholder="https://..."
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next = [...form.mediaUrls];
+                                      next.splice(globalIdx, 1);
+                                      setForm({ ...form, mediaUrls: next });
+                                    }}
+                                    className="text-red-600 text-sm hover:underline px-2"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              );
+                            })}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                              onClick={() => setForm({
+                                ...form,
+                                mediaUrls: [...form.mediaUrls, { url: "", color: "" }]
+                              })}
+                            >
+                              + Add General URL
+                            </Button>
+                          </div>
+
+                          {/* General file uploads */}
+                          <div className="mb-4">
+                            <label className="block text-xs text-gray-600 mb-1">Upload General Files</label>
+                            <input
+                              type="file"
+                              accept="image/*,video/*"
+                              multiple
+                              onChange={(e) => onPickFiles(e.target.files)}
+                              className="w-full text-sm"
+                            />
+                          </div>
+
+                          {/* General previews */}
+                          {(form.mediaUrls.filter(item => !item.color).length > 0 || form.mediaFiles.filter(item => !item.color).length > 0) && (
+                            <div>
+                              <label className="block text-xs text-gray-600 mb-2">General Previews</label>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                {form.mediaUrls.filter(item => !item.color && item.url.trim()).map((mediaItem, idx) => (
+                                  <div key={`general-url-${idx}`} className="w-full h-16 bg-gray-100 rounded overflow-hidden">
+                                    {mediaItem.url.includes('.mp4') || mediaItem.url.includes('.mov') || mediaItem.url.includes('.avi') || mediaItem.url.includes('.webm') ? (
+                                      <video
+                                        src={mediaItem.url}
+                                        className="w-full h-full object-cover"
+                                        controls={false}
+                                        muted
+                                      />
+                                    ) : (
+                                      <img
+                                        src={mediaItem.url}
+                                        alt={`General media ${idx + 1}`}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                          e.currentTarget.src = "https://picsum.photos/seed/placeholder/80/80";
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                ))}
+                                {form.mediaFiles.filter(item => !item.color).map((mediaItem, idx) => {
+                                  const globalIdx = form.mediaFiles.findIndex(item => item === mediaItem);
+                                  return (
+                                    <div key={`general-file-${idx}`} className="w-full h-16 bg-gray-100 rounded overflow-hidden relative">
+                                      {mediaItem.file.type.startsWith('video/') ? (
+                                        <video
+                                          src={mediaPreviews[globalIdx]}
+                                          className="w-full h-full object-cover"
+                                          controls={false}
+                                          muted
+                                        />
+                                      ) : (
+                                        <img
+                                          src={mediaPreviews[globalIdx]}
+                                          alt={`General upload ${idx + 1}`}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const nextFiles = [...form.mediaFiles];
+                                          const nextPreviews = [...mediaPreviews];
+                                          const nextSelectedFiles = [...selectedFiles];
+
+                                          nextFiles.splice(globalIdx, 1);
+                                          nextPreviews.splice(globalIdx, 1);
+                                          nextSelectedFiles.splice(globalIdx, 1);
+
+                                          setForm({ ...form, mediaFiles: nextFiles });
+                                          setMediaPreviews(nextPreviews);
+                                          setSelectedFiles(nextSelectedFiles);
+                                        }}
+                                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-700 mb-1">Preview</label>
-                      <div className="w-full h-28 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
-                        {/* eslint-disable-next-line jsx-a11y/img-redundant-alt */}
-                        <img
-                          src={
-                            imagePreview?.trim() ||
-                            form.imageUrl?.trim() ||
-                            "https://picsum.photos/seed/placeholder/200/200"
-                          }
-                          alt="Product preview"
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.currentTarget.src = "https://picsum.photos/seed/placeholder/200/200";
-                          }}
-                        />
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <p className="mb-2">Add colors first to organize media by color</p>
+                        <p className="text-sm">Use the "Colors" section above to add product colors</p>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   {/* Actions */}
                   <div className="sm:col-span-2 flex gap-3 pt-2">
-                    <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={handleCreateProduct}>
-                      Add Product
+                    <Button
+                      className="bg-indigo-600 hover:bg-indigo-700"
+                      onClick={handleCreateProduct}
+                      disabled={loading}
+                    >
+                      {loading ? "Adding..." : "Add Product"}
                     </Button>
                     <Button
                       variant="outline"
                       className="border-gray-300 text-gray-700 hover:bg-gray-50"
                       onClick={resetForm}
+                      disabled={loading}
                     >
                       Reset
                     </Button>
@@ -632,12 +1079,13 @@ const Admin = () => {
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Products</h3>
                 <div className="space-y-3 max-h-[360px] overflow-y-auto pr-2">
                   {[...productsData].reverse().slice(0, 12).map((p) => (
-                    <div key={p.id} className="border border-gray-200 rounded-md p-3">
+                    <div key={p.id || p._id || `product-${Math.random()}`} className="border border-gray-200 rounded-md p-3">
                       <div className="flex items-start gap-3">
                         <div className="w-12 h-12 bg-gray-100 rounded overflow-hidden">
                           <img
                             src={
-                              p.images?.[0] ||
+                              p.media?.find(m => m.type === 'image')?.url ||
+                              p.media?.[0]?.url ||
                               `https://picsum.photos/seed/${encodeURIComponent(slugify(p.name))}/200/200`
                             }
                             alt={p.name}

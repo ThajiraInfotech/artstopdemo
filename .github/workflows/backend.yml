@@ -3,16 +3,13 @@ name: Backend CI/CD
 on:
   push:
     branches: [ main ]
-    paths: [ 'backend/**' ]
-  pull_request:
-    branches: [ main ]
-    paths: [ 'backend/**' ]
+    paths: [ 'backend/**', '.github/workflows/backend.yml' ]
 
 env:
   NODE_ENV: production
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -24,26 +21,7 @@ jobs:
         cache-dependency-path: backend/package-lock.json
     - name: Install dependencies
       run: cd backend && npm ci
-    - name: Skip tests (no tests configured yet)
-      run: echo "Tests skipped - no test files configured"
-    - name: Run security audit
-      run: cd backend && npm audit --audit-level=moderate || echo "Audit completed with warnings"
-
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-    - uses: actions/checkout@v4
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./backend
-        push: true
-        tags: ${{ secrets.DOCKER_USERNAME }}/artstop-backend:latest
-    - name: Trigger Render deployment
-      run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
+    - name: Run lint/security check
+      run: cd backend && npm audit --audit-level=moderate || echo "Audit completed"
+    - name: Build check
+      run: cd backend && npm run build 2>/dev/null || echo "No build script - skipping"

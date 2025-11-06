@@ -24,10 +24,10 @@ jobs:
         cache-dependency-path: backend/package-lock.json
     - name: Install dependencies
       run: cd backend && npm ci
-    - name: Skip tests (no tests configured yet)
-      run: echo "Tests skipped - no test files configured"
+    - name: Run tests
+      run: cd backend && npm test
     - name: Run security audit
-      run: cd backend && npm audit --audit-level=moderate || echo "Audit completed with warnings"
+      run: cd backend && npm audit --audit-level=moderate
 
   build-and-deploy:
     needs: test
